@@ -2,7 +2,7 @@ const express = require('express');
 const Film = require('../models/film');
 
 
-
+//Lấy danh sách phim
 exports.getFilm = async (req, res) => {
 
     try {
@@ -14,6 +14,22 @@ exports.getFilm = async (req, res) => {
         res.status(500).json({ msg: 'Lỗi server' + error });
     }
 }
+
+
+// Lấy film theo id 
+exports.getFilmId = async (req, res) => {
+    const { id } = req.params
+
+    try {
+        const films = await Film.findById({ _id: id })
+        res.json(films);
+
+
+    } catch (error) {
+        res.status(500).json({ msg: 'Lỗi server' + error });
+    }
+}
+
 // Add film 
 exports.addFilm = async (req, res) => {
 
