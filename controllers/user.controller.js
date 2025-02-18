@@ -3,7 +3,6 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const User = require('../models/user');
-const router = express.Router();
 
 // Đăng ký
 exports.reg = async (req, res) => {
