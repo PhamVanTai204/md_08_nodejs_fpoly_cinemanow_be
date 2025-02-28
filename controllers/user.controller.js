@@ -222,3 +222,26 @@ exports.resetPassword = async (req, res) => {
   }
 };
 
+// Lấy danh sách tất cả user
+exports.getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find({}, '-password'); // Lấy tất cả user, ẩn password
+    res.json(createResponse(200, null, users));
+  } catch (error) {
+    res.status(500).json(createResponse(500, 'Lỗi server', error.message));
+  }
+};
+
+// Lấy user theo ID
+exports.getUserById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id, '-password'); // Tìm user theo ID, ẩn password
+    if (!user) {
+      return res.status(404).json(createResponse(404, 'Không tìm thấy user', null));
+    }
+    res.json(createResponse(200, null, user));
+  } catch (error) {
+    res.status(500).json(createResponse(500, 'Lỗi server', error.message));
+  }
+};

@@ -11,5 +11,10 @@ router.post('/forgotpassword', uc.forgotPassword)
 router.post('/forgotpassword/confirmOTP', uc.confirmOTP)
 //Đổi mật khẩu 
 router.post('/resetPassword', uc.resetPassword)
+// Lấy danh sách tất cả user
+router.get('/getAll', uc.getAllUsers);
+
+// Lấy thông tin user theo ID
+router.get('/getById/:id', uc.getUserById);
 
 module.exports = router;
