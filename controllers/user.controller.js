@@ -4,66 +4,56 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const User = require('../models/user');
 const OTP = require('../models/otp.model'); // Import model OTP
+const createResponse = require('../utils/responseHelper');
 
 
-const createResponse = (code, error, data) => ({ code, error, data });
 
 // Đăng ký
-exports.reg = async (req, res) => {
-  const { username, email, password, phone_number, full_name, date_of_birth, gender, role } = req.body;
 
-  if (!username || !email || !password || !phone_number || !full_name || !date_of_birth || gender === undefined || role === undefined) {
+exports.reg = async (req, res) => {
+  const { username, email, password, urlImage, role } = req.body;
+
+  // Kiểm tra thông tin bắt buộc
+  if (!username || !email || !password || role === undefined) {
     return res.status(400).json(createResponse(400, 'Vui lòng điền đầy đủ thông tin', null));
   }
 
+  // Kiểm tra username (chỉ cho phép chữ cái và số, ít nhất 3 ký tự)
   const usernameRegex = /^[a-zA-Z0-9]{3,}$/;
   if (!usernameRegex.test(username)) {
     return res.status(400).json(createResponse(400, 'Username không hợp lệ', null));
   }
 
+  // Kiểm tra password (ít nhất 6 ký tự, có chữ và số)
   const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
   if (!passwordRegex.test(password)) {
     return res.status(400).json(createResponse(400, 'Password không hợp lệ', null));
   }
+
+  // Kiểm tra email (chỉ chấp nhận @gmail.com)
   const emailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/;
   if (!emailRegex.test(email)) {
     return res.status(400).json(createResponse(400, 'Email phải có đuôi @gmail.com', null));
   }
 
-
-  const phoneRegex = /^\d{9,11}$/;
-  if (!phoneRegex.test(phone_number)) {
-    return res.status(400).json(createResponse(400, 'Số điện thoại không hợp lệ', null));
-  }
-
-  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-  if (!dateRegex.test(date_of_birth)) {
-    return res.status(400).json(createResponse(400, 'Ngày sinh không hợp lệ', null));
-  }
-
-  const dob = new Date(date_of_birth);
-  const today = new Date();
-  if (isNaN(dob.getTime())) {
-    return res.status(400).json(createResponse(400, 'Ngày sinh không hợp lệ', null));
-  }
-  if (dob > today) {
-    return res.status(400).json(createResponse(400, 'Ngày sinh không thể là ngày trong tương lai', null));
-  }
   try {
+    // Kiểm tra xem username hoặc email đã tồn tại chưa
     let user = await User.findOne({ $or: [{ email }, { username }] });
     if (user) {
       return res.status(409).json(createResponse(409, 'Email hoặc username đã tồn tại', null));
     }
 
+    // Mã hóa password trước khi lưu
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    user = new User({ username, email, password: hashedPassword, phone_number, full_name, date_of_birth: dob, gender, role });
+    // Tạo user mới
+    user = new User({ username, email, password: hashedPassword, urlImage, role });
     await user.save();
 
-    res.status(201).json(createResponse(201, null, 'Đăng ký thành công'));
+    return res.status(201).json(createResponse(201, null, 'Đăng ký thành công'));
   } catch (error) {
-    res.status(500).json(createResponse(500, 'Lỗi server', error.message));
+    return res.status(500).json(createResponse(500, 'Lỗi server', error.message));
   }
 };
 

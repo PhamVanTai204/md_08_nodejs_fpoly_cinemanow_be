@@ -6,30 +6,34 @@ const userSchema = db.mongoose.Schema({
     required: true,
     unique: true,
   },
-  password: {
-    type: String,
-    required: true,
-  },
   email: {
     type: String,
     required: true,
     unique: true,
   },
-  phone_number: {
-    type: Number,
-    required: true,
-  },
-  full_name: {
+  password: {
     type: String,
     required: true,
   },
+  urlImage: {
+    type: String,
+    required: true,
+  },
+  phone_number: {
+    type: Number,
+    required: false,
+  },
+  full_name: {
+    type: String,
+    required: false,
+  },
   date_of_birth: {
     type: Date,
-    required: true, // Đã sửa lỗi chính tả
+    required: false, // Đã sửa lỗi chính tả
   },
   gender: {
     type: Number, // Đã sửa lỗi chính tả
-    required: true,
+    required: false,
   },
   role: {
     type: Number, // Đã sửa lỗi chính tả
