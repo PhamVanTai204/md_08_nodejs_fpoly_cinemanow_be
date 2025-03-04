@@ -3,176 +3,245 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const User = require('../models/user');
+const OTP = require('../models/otp.model'); // Import model OTP
+
+
+const createResponse = (code, error, data) => ({ code, error, data });
 
 // Đăng ký
 exports.reg = async (req, res) => {
-  const { name, username, email, password } = req.body;
+  const { username, email, password, phone_number, full_name, date_of_birth, gender, role } = req.body;
 
+  if (!username || !email || !password || !phone_number || !full_name || !date_of_birth || gender === undefined || role === undefined) {
+    return res.status(400).json(createResponse(400, 'Vui lòng điền đầy đủ thông tin', null));
+  }
+
+  const usernameRegex = /^[a-zA-Z0-9]{3,}$/;
+  if (!usernameRegex.test(username)) {
+    return res.status(400).json(createResponse(400, 'Username không hợp lệ', null));
+  }
+
+  const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
+  if (!passwordRegex.test(password)) {
+    return res.status(400).json(createResponse(400, 'Password không hợp lệ', null));
+  }
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json(createResponse(400, 'Email phải có đuôi @gmail.com', null));
+  }
+
+
+  const phoneRegex = /^\d{9,11}$/;
+  if (!phoneRegex.test(phone_number)) {
+    return res.status(400).json(createResponse(400, 'Số điện thoại không hợp lệ', null));
+  }
+
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(date_of_birth)) {
+    return res.status(400).json(createResponse(400, 'Ngày sinh không hợp lệ', null));
+  }
+
+  const dob = new Date(date_of_birth);
+  const today = new Date();
+  if (isNaN(dob.getTime())) {
+    return res.status(400).json(createResponse(400, 'Ngày sinh không hợp lệ', null));
+  }
+  if (dob > today) {
+    return res.status(400).json(createResponse(400, 'Ngày sinh không thể là ngày trong tương lai', null));
+  }
   try {
-    // Kiểm tra xem email hoặc username đã tồn tại chưa
     let user = await User.findOne({ $or: [{ email }, { username }] });
     if (user) {
-      return res.status(400).json({ msg: 'Email hoặc username đã tồn tại' });
+      return res.status(409).json(createResponse(409, 'Email hoặc username đã tồn tại', null));
     }
 
-    // Mã hóa mật khẩu
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Tạo người dùng mới
-    user = new User({
-      name,
-      username,
-      email,
-      password: hashedPassword,
-    });
-
+    user = new User({ username, email, password: hashedPassword, phone_number, full_name, date_of_birth: dob, gender, role });
     await user.save();
-    res.status(201).json({ msg: 'Đăng ký thành công' });
 
+    res.status(201).json(createResponse(201, null, 'Đăng ký thành công'));
   } catch (error) {
-    res.status(500).json({ msg: 'Lỗi server' });
+    res.status(500).json(createResponse(500, 'Lỗi server', error.message));
   }
-}
+};
 
 // Đăng nhập
 exports.login = async (req, res) => {
   const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ code: 400, error: 'Vui lòng nhập email và mật khẩu' });
+  }
 
   try {
-    // Tìm người dùng theo email
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ msg: 'Email không tồn tại' });
+      return res.status(404).json({ code: 404, error: 'Email không tồn tại' });
     }
 
-    // Kiểm tra mật khẩu
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ msg: 'Mật khẩu không đúng' });
+      return res.status(401).json({ code: 401, error: 'Mật khẩu không đúng' });
     }
 
-    // Tạo token
-    const token = jwt.sign(
-      { userId: user._id, username: user.username },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
-
-    res.json({ token });
-
+    const token = jwt.sign({ userId: user._id, username: user.username, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.json({
+      code: 200,
+      error: null,
+      data: {
+        userId: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+      },
+      token: token,
+    });
   } catch (error) {
-    res.status(500).json({ msg: 'Lỗi server' });
+    res.status(500).json({ code: 500, error: 'Lỗi server', message: error.message });
   }
 };
 
+// Cấu hình Nodemailer
 
 
-function generateRandomSixDigitNumber() {
-  return Math.floor(100000 + Math.random() * 900000);
-}
-
-console.log(generateRandomSixDigitNumber());
-
-
-// Quên mật khẩu 
 exports.forgotPassword = async (req, res) => {
   const { email } = req.body;
 
   try {
-    const otp = generateRandomSixDigitNumber(); // Tạo mã OTP
+    const otp = Math.floor(100000 + Math.random() * 900000); // Tạo mã OTP 6 chữ số
 
-    // Tìm người dùng theo email
+    // Kiểm tra user có tồn tại không
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ msg: 'Email không tồn tại' });
+      return res.status(404).json(createResponse(404, 'Email chưa đăng ký tài khoản', null));
+    }
+    const existingOTP = await OTP.findOne({ email });
+    if (existingOTP) {
+      return res.status(400).json(createResponse(400, 'OTP vẫn còn hiệu lực, vui lòng thử lại sau', null));
     }
 
+    // Lưu OTP vào collection riêng (MongoDB sẽ tự động xóa sau 5 phút)
+    await OTP.create({ email, otp });
 
+    // Gửi email
     const transporter = nodemailer.createTransport({
       service: 'Gmail',
       auth: {
         user: 'sanndph32936@fpt.edu.vn',
         pass: 'tlqb wbgl llzt mbnw',
+      },
+      tls: {
+        rejectUnauthorized: false
       }
-    })
+    });
 
     const mailOptions = {
       from: 'sanndph32936@fpt.edu.vn',
-      to: user.email,
+      to: email,
       subject: 'Password Reset OTP',
-
-      html: `<p>You requested a password reset</p>
-             <p>Your OTP code is: <strong>${otp}</strong></p>`
-
-    }
+      html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #f9f9f9;">
+        <div style="text-align: center; padding: 20px; background-color:rgb(59, 205, 186); border-radius: 12px 12px 0 0;">
+          <h1 style="margin: 0; font-size: 26px; color: #ffffff;">Yêu Cầu Đặt Lại Mật Khẩu</h1>
+        </div>
+        <div style="padding: 20px; text-align: center;">
+          <p style="font-size: 16px; color:rgb(0, 0, 0); line-height: 1.6;">
+            Bạn đã yêu cầu đặt lại mật khẩu.  
+          </p>
+            <p style="font-size: 16px; color:rgb(0, 0, 0); line-height: 1.6;">
+            Vui lòng sử dụng mã OTP bên dưới để xác thực:
+          </p>
+          <div style="background-color: #ffffff; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; display: inline-block; margin: 20px 0;">
+            <p style="font-size: 36px; font-weight: bold; color:rgb(0, 0, 0); margin: 0;">${otp}</p>
+          </div>
+          <p style="font-size: 14px; color:rgb(255, 0, 0);">
+            Mã OTP có hiệu lực trong 5 phút. Vui lòng không chia sẻ mã này với bất kỳ ai.
+          </p>
+        </div>
+        <div style="text-align: center; padding: 20px; background-color: #f1f1f1; border-radius: 0 0 12px 12px; border: 1px solidrgb(6, 6, 6);">
+          <p style="font-size: 14px; color:rgb(0, 0, 0); margin: 0; ">
+            Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.
+          </p>
+        </div>
+      </div>
+    `,
+    };
 
     await transporter.sendMail(mailOptions);
-    user.otp = otp;
-    user.save();
 
-
-
-
-    res.json({ message: 'Check your email for the OTP code' });
+    res.json(createResponse(200, null, 'Kiểm tra mã OTP được gửi vào Email của bạn'));
 
   } catch (error) {
-
-    res.status(500).json({ msg: 'Lỗi server' + error });
+    res.status(500).json({ msg: 'Lỗi server: ' + error });
   }
 };
 
-// Xác nhận mã otp 
+
+
+// Xác nhận OTP
 exports.confirmOTP = async (req, res) => {
   const { email, otp } = req.body;
 
   try {
+    const otpRecord = await OTP.findOne({ email, otp });
 
-
-    // Tìm người dùng theo email
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ msg: 'Email không tồn tại' });
+    if (!otpRecord) {
+      return res.status(400).json(createResponse(400, 'OTP không hợp lệ hoặc đã hết hạn', null));
     }
 
-    if (user.otp != otp) {
-      return res.status(400).json({ msg: 'Nhập sai mã OTP' });
-    }
+    // Nếu tìm thấy OTP, MongoDB sẽ tự động xóa khi hết hạn, không cần xóa thủ công
+    await OTP.deleteOne({ _id: otpRecord._id });
 
-    res.json({ message: 'OTP hợp lệ' });
-
+    res.json(createResponse(200, null, 'OTP hợp lệ'));
   } catch (error) {
-
-    res.status(500).json({ msg: 'Lỗi server' + error });
+    res.status(500).json(createResponse(500, 'Lỗi server', error.message));
   }
 };
 
 
-// Xác nhận mã otp 
+
+// Đổi mật khẩu
 exports.resetPassword = async (req, res) => {
   const { email, password } = req.body;
-
   try {
-
-
-    // Tìm người dùng theo email
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ msg: 'Email không tồn tại' });
+      return res.status(404).json(createResponse(404, 'Email không tồn tại', null));
     }
 
-    // Mã hóa mật khẩu
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    user.password = hashedPassword
-    user.otp = undefined;
-    user.save()
+    // Chỉ cập nhật password mà không ảnh hưởng đến các field khác
+    await User.updateOne({ email }, { $set: { password: hashedPassword } });
 
-    res.json({ message: 'Đổi mật khẩu thành công' });
-
+    res.json(createResponse(200, null, 'Đổi mật khẩu thành công'));
   } catch (error) {
+    res.status(500).json(createResponse(500, 'Lỗi server', error.message));
+  }
+};
 
-    res.status(500).json({ msg: 'Lỗi server' + error });
+// Lấy danh sách tất cả user
+exports.getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find({}, '-password'); // Lấy tất cả user, ẩn password
+    res.json(createResponse(200, null, users));
+  } catch (error) {
+    res.status(500).json(createResponse(500, 'Lỗi server', error.message));
+  }
+};
+
+// Lấy user theo ID
+exports.getUserById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id, '-password'); // Tìm user theo ID, ẩn password
+    if (!user) {
+      return res.status(404).json(createResponse(404, 'Không tìm thấy user', null));
+    }
+    res.json(createResponse(200, null, user));
+  } catch (error) {
+    res.status(500).json(createResponse(500, 'Lỗi server', error.message));
   }
 };
