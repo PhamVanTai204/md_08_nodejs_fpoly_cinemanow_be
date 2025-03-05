@@ -1,100 +1,89 @@
 const express = require('express');
 const Film = require('../models/film');
+const createResponse = require('../utils/responseHelper');
 
+// Middleware kiểm tra ID hợp lệ
+const validateId = (req, res, next) => {
+    if (!req.params.id) {
+        return res.status(400).json(createResponse(400, 'Thiếu ID phim', null));
+    }
+    next();
+};
 
-//Lấy danh sách phim
+// Lấy danh sách phim
 exports.getFilm = async (req, res) => {
-
     try {
-        const films = await Film.find()
-        res.json(films);
-
-
+        const films = await Film.find();
+        res.status(200).json(createResponse(200, null, films));
     } catch (error) {
-        res.status(500).json({ msg: 'Lỗi server' + error });
+        res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách phim', error.message));
     }
-}
+};
 
-
-// Lấy film theo id 
+// Lấy phim theo ID
 exports.getFilmId = async (req, res) => {
-    const { id } = req.params
-
     try {
-        const films = await Film.findById({ _id: id })
-        res.json(films);
-
-
+        const film = await Film.findById(req.params.id);
+        if (!film) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy phim', null));
+        }
+        res.status(200).json(createResponse(200, null, film));
     } catch (error) {
-        res.status(500).json({ msg: 'Lỗi server' + error });
+        res.status(500).json(createResponse(500, 'Lỗi khi lấy phim', error.message));
     }
-}
+};
 
-// Add film 
+// Thêm phim
 exports.addFilm = async (req, res) => {
+    const { status_film, genre_film, trailer_film, duration, release_date, end_date, image, title, describe } = req.body;
 
-    const { status_film, genre_film, trailer_film, duration, release_date, end_date, image, title, describe } = req.body
-
+    if (!status_film || !genre_film || !title || !describe) {
+        return res.status(400).json(createResponse(400, 'Thiếu thông tin bắt buộc', null));
+    }
 
     try {
-
-        // Tạo film mới
         const film = new Film({
             status_film, genre_film, trailer_film, duration, release_date, end_date, image, title, describe
         });
+
         await film.save();
-        res.status(201).json({ msg: 'Thêm thành công thành công' });
-
+        res.status(201).json(createResponse(201, null, 'Thêm phim thành công'));
     } catch (error) {
-        res.status(500).json({ msg: 'Lỗi server' + error });
+        const statusCode = error.name === 'ValidationError' ? 400 : 500;
+        res.status(statusCode).json(createResponse(statusCode, 'Lỗi khi thêm phim', error.message));
     }
-}
+};
 
-
-//Update film 
-
+// Cập nhật phim
 exports.updateFilm = async (req, res) => {
-
-
     try {
-        const { id } = req.params
-        const { status_film, genre_film, trailer_film, duration, release_date, end_date, image, title, describe } = req.body
-        const updateFilm = await Film.findOneAndUpdate(
-            { _id: id },
-            { status_film, genre_film, trailer_film, duration, release_date, end_date, image, title, describe },
-            { new: true }
+        const updatedFilm = await Film.findByIdAndUpdate(
+            req.params.id,
+            req.body,
+            { new: true, runValidators: true }
         );
-        if (!updateFilm) {
-            return res.status(404).json({ message: 'Không tìm thấy film' }).send();
+
+        if (!updatedFilm) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy phim', null));
         }
 
-
-        return res.status(200).json({ message: 'Đã cập nhật film' }).send();
-
-
-
+        res.status(200).json(createResponse(200, null, 'Cập nhật phim thành công'));
     } catch (error) {
-
-        return res.status(404).json({ message: 'Lỗi server' }).send();
-
+        const statusCode = error.name === 'ValidationError' ? 400 : 500;
+        res.status(statusCode).json(createResponse(statusCode, 'Lỗi khi cập nhật phim', error.message));
     }
-}
+};
 
-
-//Delete film 
-
+// Xóa phim
 exports.deleteFilm = async (req, res) => {
     try {
-        const { id } = req.params;
-        const deleteFilm = await Film.findByIdAndDelete({ _id: id })
-
-        if (!deleteFilm) {
-            return res.status(404).send();
+        const deletedFilm = await Film.findByIdAndDelete(req.params.id);
+        if (!deletedFilm) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy phim', null));
         }
 
-        return res.status(200).send(deletedMovie);
+        res.status(200).json(createResponse(200, null, 'Xóa phim thành công'));
     } catch (error) {
-        res.status(500).send(error);
+        res.status(500).json(createResponse(500, 'Lỗi khi xóa phim', error.message));
     }
-}
-
+};
