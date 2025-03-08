@@ -12,6 +12,7 @@ dotenv.config();
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
 var filmRouter = require('./routes/film');
+var showTimeRoutes = require('./routes/showTime'); // Import routes suất chiếu
 
 var app = express();
 
@@ -28,6 +29,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
 app.use('/films', filmRouter);
+app.use('/showtimes', showTimeRoutes); // Định nghĩa tiền tố URL
 
 
 // catch 404 and forward to error handler
