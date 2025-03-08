@@ -11,5 +11,8 @@ router.get('/getById/:id', showTimeController.getShowTimeById);
 // Thêm suất chiếu mới
 router.post('/addShowTime', showTimeController.addShowTime);
 
+// Cập nhật suất chiếu theo ID
+router.put('/updateShowTime/:id', showTimeController.updateShowTime);
+
 
 module.exports = router;
