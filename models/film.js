@@ -2,9 +2,13 @@ const db = require('./db')
 const filmSchema = db.mongoose.Schema({
 
     status_film: {
-        type: String,
+        type: Number,
         required: true,
     },
+    //     0 = Đã lên lịch
+    // 1 = Đang chiếu
+    // 2 = Đã chiếu xong
+    // 3 = Đã hủy
     genre_film: {
         type: String,
         required: true,
