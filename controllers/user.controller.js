@@ -193,17 +193,40 @@ exports.confirmOTP = async (req, res) => {
 
 // Đổi mật khẩu
 exports.resetPassword = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, otp, password } = req.body;
+
+  // Kiểm tra xem có đầy đủ thông tin không
+  if (!email || !otp || !password) {
+    return res.status(400).json(createResponse(400, 'Vui lòng nhập đầy đủ thông tin (email, otp, password)', null));
+  }
+
+  // Kiểm tra định dạng mật khẩu mới (ít nhất 6 ký tự, có chữ và số)
+  const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
+  if (!passwordRegex.test(password)) {
+    return res.status(400).json(createResponse(400, 'Mật khẩu mới phải có ít nhất 6 ký tự, bao gồm chữ và số', null));
+  }
+
   try {
+    // Kiểm tra xem email có tồn tại không
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json(createResponse(404, 'Email không tồn tại', null));
     }
 
+    // Kiểm tra OTP có hợp lệ không
+    const otpRecord = await OTP.findOne({ email, otp });
+    if (!otpRecord) {
+      return res.status(400).json(createResponse(400, 'OTP không hợp lệ hoặc đã hết hạn', null));
+    }
+
+    // Xóa OTP sau khi sử dụng
+    await OTP.deleteOne({ _id: otpRecord._id });
+
+    // Mã hóa mật khẩu mới
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Chỉ cập nhật password mà không ảnh hưởng đến các field khác
+    // Cập nhật mật khẩu mới cho user
     await User.updateOne({ email }, { $set: { password: hashedPassword } });
 
     res.json(createResponse(200, null, 'Đổi mật khẩu thành công'));
