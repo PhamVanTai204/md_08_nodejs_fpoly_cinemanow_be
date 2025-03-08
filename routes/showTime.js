@@ -14,5 +14,7 @@ router.post('/addShowTime', showTimeController.addShowTime);
 // Cập nhật suất chiếu theo ID
 router.put('/updateShowTime/:id', showTimeController.updateShowTime);
 
+// Xóa suất chiếu theo ID
+router.delete('/deleteShowTime/:id', showTimeController.deleteShowTime);
 
 module.exports = router;

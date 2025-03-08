@@ -89,3 +89,18 @@ exports.updateShowTime = async (req, res) => {
         res.status(500).json(createResponse(500, 'Lỗi khi cập nhật suất chiếu', error.message));
     }
 };
+
+
+// Xóa suất chiếu
+exports.deleteShowTime = async (req, res) => {
+    try {
+        const deletedShowTime = await ShowTime.findByIdAndDelete(req.params.id);
+        if (!deletedShowTime) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy suất chiếu', null));
+        }
+
+        res.status(200).json(createResponse(200, null, 'Xóa suất chiếu thành công'));
+    } catch (error) {
+        res.status(500).json(createResponse(500, 'Lỗi khi xóa suất chiếu', error.message));
+    }
+};
