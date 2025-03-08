@@ -27,3 +27,33 @@ exports.getShowTimeById = async (req, res) => {
     }
 };
 
+// Thêm suất chiếu mới
+exports.addShowTime = async (req, res) => {
+    const { movieId, statusShowTime, startTime, endTime, price } = req.body;
+
+    if (!movieId || !startTime || !endTime || !price) {
+        return res.status(400).json(createResponse(400, 'Thiếu thông tin bắt buộc', null));
+    }
+
+    try {
+        // Kiểm tra xem phim có tồn tại không
+        const film = await Film.findById(movieId);
+        if (!film) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy phim', null));
+        }
+
+        const showTime = new ShowTime({
+            movieId,
+            statusShowTime,
+            startTime,
+            endTime,
+            price
+        });
+
+        await showTime.save();
+        res.status(201).json(createResponse(201, null, 'Thêm suất chiếu thành công'));
+    } catch (error) {
+        const statusCode = error.name === 'ValidationError' ? 400 : 500;
+        res.status(statusCode).json(createResponse(statusCode, 'Lỗi khi thêm suất chiếu', error.message));
+    }
+};

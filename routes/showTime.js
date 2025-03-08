@@ -8,4 +8,8 @@ router.get('/getAll', showTimeController.getShowTimes);
 // Lấy suất chiếu theo ID
 router.get('/getById/:id', showTimeController.getShowTimeById);
 
+// Thêm suất chiếu mới
+router.post('/addShowTime', showTimeController.addShowTime);
+
+
 module.exports = router;
