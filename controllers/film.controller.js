@@ -35,7 +35,7 @@ exports.getFilmId = async (req, res) => {
 
 // Thêm phim
 exports.addFilm = async (req, res) => {
-    const { status_film, genre_film, trailer_film, duration, release_date, end_date, image, title, describe } = req.body;
+    const { status_film, genre_film, trailer_film, duration, release_date, end_date, image_film, title, describe } = req.body;
 
     if (!status_film || !genre_film || !title || !describe) {
         return res.status(400).json(createResponse(400, 'Thiếu thông tin bắt buộc', null));
@@ -43,7 +43,7 @@ exports.addFilm = async (req, res) => {
 
     try {
         const film = new Film({
-            status_film, genre_film, trailer_film, duration, release_date, end_date, image, title, describe
+            status_film, genre_film, trailer_film, duration, release_date, end_date, image_film, title, describe
         });
 
         await film.save();
