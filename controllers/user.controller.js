@@ -106,10 +106,16 @@ exports.forgotPassword = async (req, res) => {
     if (!user) {
       return res.status(404).json(createResponse(404, 'Email chưa đăng ký tài khoản', null));
     }
-    const existingOTP = await OTP.findOne({ email });
-    if (existingOTP) {
-      return res.status(400).json(createResponse(400, 'OTP vẫn còn hiệu lực, vui lòng thử lại sau', null));
+    // Kiểm tra lần gửi OTP gần nhất
+    const lastOTP = await OTP.findOne({ email }).sort({ createdAt: -1 });
+
+    if (lastOTP) {
+      const timeDiff = (Date.now() - lastOTP.createdAt.getTime()) / 1000; // Tính thời gian trôi qua (giây)
+      if (timeDiff < 120) {
+        return res.status(400).json(createResponse(400, `OTP đã được gửi tới emai của bạn, vui lòng thử lại sau ${Math.ceil(120 - timeDiff)} giây`, null));
+      }
     }
+
 
     // Lưu OTP vào collection riêng (MongoDB sẽ tự động xóa sau 5 phút)
     await OTP.create({ email, otp });
@@ -169,18 +175,19 @@ exports.forgotPassword = async (req, res) => {
 
 
 
-// Xác nhận OTP
+// Xác nhận OTP chỉ cần nhập mã OTP, không cần email
 exports.confirmOTP = async (req, res) => {
-  const { email, otp } = req.body;
+  const { otp } = req.body;
 
   try {
-    const otpRecord = await OTP.findOne({ email, otp });
+    // Tìm OTP trong database chỉ dựa vào mã OTP
+    const otpRecord = await OTP.findOne({ otp });
 
     if (!otpRecord) {
       return res.status(400).json(createResponse(400, 'OTP không hợp lệ hoặc đã hết hạn', null));
     }
 
-    // Nếu tìm thấy OTP, MongoDB sẽ tự động xóa khi hết hạn, không cần xóa thủ công
+    // Nếu tìm thấy OTP, xóa ngay sau khi xác nhận
     await OTP.deleteOne({ _id: otpRecord._id });
 
     res.json(createResponse(200, null, 'OTP hợp lệ'));
@@ -188,6 +195,7 @@ exports.confirmOTP = async (req, res) => {
     res.status(500).json(createResponse(500, 'Lỗi server', error.message));
   }
 };
+
 
 
 
