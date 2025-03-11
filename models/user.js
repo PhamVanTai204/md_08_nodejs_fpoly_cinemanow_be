@@ -1,7 +1,7 @@
 const db = require('./db');
 
 const userSchema = db.mongoose.Schema({
-  username: {
+  user_name: {
     type: String,
     required: true,
     unique: true,
@@ -15,7 +15,7 @@ const userSchema = db.mongoose.Schema({
     type: String,
     required: true,
   },
-  urlImage: {
+  url_image: {
     type: String,
     required: true,
   },

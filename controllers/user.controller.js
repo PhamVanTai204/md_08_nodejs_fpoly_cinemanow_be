@@ -11,16 +11,16 @@ const createResponse = require('../utils/responseHelper');
 // Đăng ký
 
 exports.reg = async (req, res) => {
-  const { username, email, password, urlImage, role } = req.body;
+  const { user_name, email, password, url_image, role } = req.body;
 
   // Kiểm tra thông tin bắt buộc
-  if (!username || !email || !password || role === undefined) {
+  if (!user_name || !email || !password || role === undefined) {
     return res.status(400).json(createResponse(400, 'Vui lòng điền đầy đủ thông tin', null));
   }
 
-  // Kiểm tra username (chỉ cho phép chữ cái và số, ít nhất 3 ký tự)
+  // Kiểm tra user_name (chỉ cho phép chữ cái và số, ít nhất 3 ký tự)
   const usernameRegex = /^[a-zA-Z0-9]{3,}$/;
-  if (!usernameRegex.test(username)) {
+  if (!usernameRegex.test(user_name)) {
     return res.status(400).json(createResponse(400, 'Username không hợp lệ', null));
   }
 
@@ -37,10 +37,10 @@ exports.reg = async (req, res) => {
   }
 
   try {
-    // Kiểm tra xem username hoặc email đã tồn tại chưa
-    let user = await User.findOne({ $or: [{ email }, { username }] });
+    // Kiểm tra xem user_name hoặc email đã tồn tại chưa
+    let user = await User.findOne({ $or: [{ email }, { user_name }] });
     if (user) {
-      return res.status(409).json(createResponse(409, 'Email hoặc username đã tồn tại', null));
+      return res.status(409).json(createResponse(409, 'Email hoặc user_name đã tồn tại', null));
     }
 
     // Mã hóa password trước khi lưu
@@ -48,7 +48,7 @@ exports.reg = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // Tạo user mới
-    user = new User({ username, email, password: hashedPassword, urlImage, role });
+    user = new User({ user_name, email, password: hashedPassword, url_image, role });
     await user.save();
 
     return res.status(201).json(createResponse(201, null, 'Đăng ký thành công'));
@@ -75,13 +75,13 @@ exports.login = async (req, res) => {
       return res.status(401).json({ code: 401, error: 'Mật khẩu không đúng' });
     }
 
-    const token = jwt.sign({ userId: user._id, username: user.username, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ userId: user._id, user_name: user.user_name, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
     res.json({
       code: 200,
       error: null,
       data: {
         userId: user._id,
-        username: user.username,
+        user_name: user.user_name,
         email: user.email,
         role: user.role,
       },
