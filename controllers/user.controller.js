@@ -167,8 +167,8 @@ exports.forgotPassword = async (req, res) => {
   }
 };
 
-
 // Xác nhận OTP
+
 exports.confirmOTP = async (req, res) => {
   const { email, otp } = req.body;
 
