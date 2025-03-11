@@ -217,8 +217,6 @@ exports.resetPassword = async (req, res) => {
       return res.status(400).json(createResponse(400, 'OTP không hợp lệ hoặc đã hết hạn', null));
     }
 
-    // Xóa OTP sau khi sử dụng
-    await OTP.deleteOne({ _id: otpRecord._id });
 
     // Mã hóa mật khẩu mới
     const salt = await bcrypt.genSalt(10);
@@ -228,6 +226,9 @@ exports.resetPassword = async (req, res) => {
     await User.updateOne({ email }, { $set: { password: hashedPassword } });
 
     res.json(createResponse(200, null, 'Đổi mật khẩu thành công'));
+    // Xóa OTP sau khi sử dụng
+    await OTP.deleteOne({ _id: otpRecord._id });
+
   } catch (error) {
     res.status(500).json(createResponse(500, 'Lỗi server', error.message));
   }
