@@ -174,20 +174,18 @@ exports.forgotPassword = async (req, res) => {
 };
 
 
-
-// Xác nhận OTP chỉ cần nhập mã OTP, không cần email
+// Xác nhận OTP
 exports.confirmOTP = async (req, res) => {
-  const { otp } = req.body;
+  const { email, otp } = req.body;
 
   try {
-    // Tìm OTP trong database chỉ dựa vào mã OTP
-    const otpRecord = await OTP.findOne({ otp });
+    const otpRecord = await OTP.findOne({ email, otp });
 
     if (!otpRecord) {
       return res.status(400).json(createResponse(400, 'OTP không hợp lệ hoặc đã hết hạn', null));
     }
 
-    // Nếu tìm thấy OTP, xóa ngay sau khi xác nhận
+    // Nếu tìm thấy OTP, MongoDB sẽ tự động xóa khi hết hạn, không cần xóa thủ công
     await OTP.deleteOne({ _id: otpRecord._id });
 
     res.json(createResponse(200, null, 'OTP hợp lệ'));
