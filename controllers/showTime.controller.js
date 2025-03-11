@@ -17,7 +17,7 @@ exports.getShowTimes = async (req, res) => {
 // Lấy suất chiếu theo ID
 exports.getShowTimeById = async (req, res) => {
     try {
-        const showTime = await ShowTime.findById(req.params.id).populate('movieId');
+        const showTime = await ShowTime.findById(req.params.id).populate('movie_id');
         if (!showTime) {
             return res.status(404).json(createResponse(404, 'Không tìm thấy suất chiếu', null));
         }
@@ -29,24 +29,24 @@ exports.getShowTimeById = async (req, res) => {
 
 // Thêm suất chiếu mới
 exports.addShowTime = async (req, res) => {
-    const { movieId, statusShowTime, startTime, endTime, price } = req.body;
+    const { movie_id, showtime_status, start_time, end_time, price } = req.body;
 
-    if (!movieId || !startTime || !endTime || !price) {
+    if (!movie_id || !start_time || !end_time || !price) {
         return res.status(400).json(createResponse(400, 'Thiếu thông tin bắt buộc', null));
     }
 
     try {
         // Kiểm tra xem phim có tồn tại không
-        const film = await Film.findById(movieId);
+        const film = await Film.findById(movie_id);
         if (!film) {
             return res.status(404).json(createResponse(404, 'Không tìm thấy phim', null));
         }
 
         const showTime = new ShowTime({
-            movieId,
-            statusShowTime,
-            startTime,
-            endTime,
+            movie_id,
+            showtime_status,
+            start_time,
+            end_time,
             price
         });
 
@@ -61,7 +61,7 @@ exports.addShowTime = async (req, res) => {
 // Cập nhật suất chiếu
 exports.updateShowTime = async (req, res) => {
     const { id } = req.params;
-    const { movieId, statusShowTime, startTime, endTime, price } = req.body;
+    const { movie_id, showtime_status, start_time, end_time, price } = req.body;
 
     // Kiểm tra nếu ID không hợp lệ
     if (!id.match(/^[0-9a-fA-F]{24}$/)) {
@@ -76,10 +76,10 @@ exports.updateShowTime = async (req, res) => {
         }
 
         // Cập nhật suất chiếu
-        existingShowTime.movieId = movieId || existingShowTime.movieId;
-        existingShowTime.statusShowTime = statusShowTime !== undefined ? statusShowTime : existingShowTime.statusShowTime;
-        existingShowTime.startTime = startTime || existingShowTime.startTime;
-        existingShowTime.endTime = endTime || existingShowTime.endTime;
+        existingShowTime.movie_id = movie_id || existingShowTime.movie_id;
+        existingShowTime.showtime_status = showtime_status !== undefined ? showtime_status : existingShowTime.showtime_status;
+        existingShowTime.start_time = start_time || existingShowTime.start_time;
+        existingShowTime.end_time = end_time || existingShowTime.end_time;
         existingShowTime.price = price !== undefined ? price : existingShowTime.price;
 
         await existingShowTime.save();

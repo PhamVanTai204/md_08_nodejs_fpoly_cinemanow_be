@@ -31,7 +31,7 @@ const filmSchema = db.mongoose.Schema({
         type: String,
         required: true,
     },
-    image: {
+    image_film: {
         type: String,
         required: true,
     },

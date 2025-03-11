@@ -1,20 +1,20 @@
 const db = require('./db');
 
 const showTimeSchema = db.mongoose.Schema({
-    movieId: {
+    movie_id: {
         type: String,
         ref: 'Film',  // Liên kết với bảng phim
         required: true
     },
-    statusShowTime: {
+    showtime_status: {
         type: Number,
         required: true
     },
-    startTime: {
+    start_time: {
         type: String,
         required: true
     },
-    endTime: {
+    end_time: {
         type: String,
         required: true
     },
