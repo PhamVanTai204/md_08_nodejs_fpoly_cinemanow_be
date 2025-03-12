@@ -11,16 +11,16 @@ const createResponse = require('../utils/responseHelper');
 // Đăng ký
 
 exports.reg = async (req, res) => {
-  const { username, email, password, urlImage, role } = req.body;
+  const { user_name, email, password, url_image, role } = req.body;
 
   // Kiểm tra thông tin bắt buộc
-  if (!username || !email || !password || role === undefined) {
+  if (!user_name || !email || !password || role === undefined) {
     return res.status(400).json(createResponse(400, 'Vui lòng điền đầy đủ thông tin', null));
   }
 
-  // Kiểm tra username (chỉ cho phép chữ cái và số, ít nhất 3 ký tự)
+  // Kiểm tra user_name (chỉ cho phép chữ cái và số, ít nhất 3 ký tự)
   const usernameRegex = /^[a-zA-Z0-9]{3,}$/;
-  if (!usernameRegex.test(username)) {
+  if (!usernameRegex.test(user_name)) {
     return res.status(400).json(createResponse(400, 'Username không hợp lệ', null));
   }
 
@@ -37,10 +37,10 @@ exports.reg = async (req, res) => {
   }
 
   try {
-    // Kiểm tra xem username hoặc email đã tồn tại chưa
-    let user = await User.findOne({ $or: [{ email }, { username }] });
+    // Kiểm tra xem user_name hoặc email đã tồn tại chưa
+    let user = await User.findOne({ $or: [{ email }, { user_name }] });
     if (user) {
-      return res.status(409).json(createResponse(409, 'Email hoặc username đã tồn tại', null));
+      return res.status(409).json(createResponse(409, 'Email hoặc user_name đã tồn tại', null));
     }
 
     // Mã hóa password trước khi lưu
@@ -48,7 +48,7 @@ exports.reg = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // Tạo user mới
-    user = new User({ username, email, password: hashedPassword, urlImage, role });
+    user = new User({ user_name, email, password: hashedPassword, url_image, role });
     await user.save();
 
     return res.status(201).json(createResponse(201, null, 'Đăng ký thành công'));
@@ -75,13 +75,13 @@ exports.login = async (req, res) => {
       return res.status(401).json({ code: 401, error: 'Mật khẩu không đúng' });
     }
 
-    const token = jwt.sign({ userId: user._id, username: user.username, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ userId: user._id, user_name: user.user_name, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
     res.json({
       code: 200,
       error: null,
       data: {
         userId: user._id,
-        username: user.username,
+        user_name: user.user_name,
         email: user.email,
         role: user.role,
       },
@@ -106,10 +106,16 @@ exports.forgotPassword = async (req, res) => {
     if (!user) {
       return res.status(404).json(createResponse(404, 'Email chưa đăng ký tài khoản', null));
     }
-    const existingOTP = await OTP.findOne({ email });
-    if (existingOTP) {
-      return res.status(400).json(createResponse(400, 'OTP vẫn còn hiệu lực, vui lòng thử lại sau', null));
+    // Kiểm tra lần gửi OTP gần nhất
+    const lastOTP = await OTP.findOne({ email }).sort({ createdAt: -1 });
+
+    if (lastOTP) {
+      const timeDiff = (Date.now() - lastOTP.createdAt.getTime()) / 1000; // Tính thời gian trôi qua (giây)
+      if (timeDiff < 120) {
+        return res.status(400).json(createResponse(400, `OTP đã được gửi tới emai của bạn, vui lòng thử lại sau ${Math.ceil(120 - timeDiff)} giây`, null));
+      }
     }
+
 
     // Lưu OTP vào collection riêng (MongoDB sẽ tự động xóa sau 5 phút)
     await OTP.create({ email, otp });
@@ -167,8 +173,8 @@ exports.forgotPassword = async (req, res) => {
   }
 };
 
-// Xác nhận OTP
 
+// Xác nhận OTP
 exports.confirmOTP = async (req, res) => {
   const { email, otp } = req.body;
 
@@ -179,8 +185,6 @@ exports.confirmOTP = async (req, res) => {
       return res.status(400).json(createResponse(400, 'OTP không hợp lệ hoặc đã hết hạn', null));
     }
 
-    // Nếu tìm thấy OTP, MongoDB sẽ tự động xóa khi hết hạn, không cần xóa thủ công
-    await OTP.deleteOne({ _id: otpRecord._id });
 
     res.json(createResponse(200, null, 'OTP hợp lệ'));
   } catch (error) {
@@ -189,6 +193,9 @@ exports.confirmOTP = async (req, res) => {
 };
 
 
+
+
+// Đổi mật khẩu
 exports.resetPassword = async (req, res) => {
   const { email, otp, password } = req.body;
 
