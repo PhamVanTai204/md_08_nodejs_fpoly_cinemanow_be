@@ -5,4 +5,5 @@ router.post('/create', uc.createGenre)
 router.get('/getAll', uc.getAllGenres)
 router.get('/getById/:id', uc.getGenreById)
 
+router.put('/update/:id', uc.updateGenre)
 module.exports = router;
