@@ -24,3 +24,13 @@ exports.createGenre = async (req, res) => {
         res.status(500).json(createResponse(500, 'Lỗi server', error.message));
     }
 };
+// Lấy danh sách thể loại
+exports.getAllGenres = async (req, res) => {
+    try {
+        const genres = await Genres.find();
+        res.json(createResponse(200, null, genres));
+    } catch (error) {
+        res.status(500).json(createResponse(500, 'Lỗi server', error.message));
+    }
+};
+
