@@ -34,3 +34,17 @@ exports.getAllGenres = async (req, res) => {
     }
 };
 
+
+// Lấy thể loại theo ID
+exports.getGenreById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const genre = await Genres.findById(id);
+        if (!genre) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy thể loại', null));
+        }
+        res.json(createResponse(200, null, genre));
+    } catch (error) {
+        res.status(500).json(createResponse(500, 'Lỗi server', error.message));
+    }
+};
