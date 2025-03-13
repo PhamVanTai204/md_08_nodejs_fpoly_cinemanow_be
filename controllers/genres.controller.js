@@ -69,3 +69,17 @@ exports.updateGenre = async (req, res) => {
     }
 };
 
+
+// Xóa thể loại
+exports.deleteGenre = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deletedGenre = await Genres.findByIdAndDelete(id);
+        if (!deletedGenre) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy thể loại', null));
+        }
+        res.json(createResponse(200, null, 'Xóa thể loại thành công'));
+    } catch (error) {
+        res.status(500).json(createResponse(500, 'Lỗi server', error.message));
+    }
+};

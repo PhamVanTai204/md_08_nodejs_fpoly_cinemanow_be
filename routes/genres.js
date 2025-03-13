@@ -6,4 +6,6 @@ router.get('/getAll', uc.getAllGenres)
 router.get('/getById/:id', uc.getGenreById)
 
 router.put('/update/:id', uc.updateGenre)
+router.delete('/delete/:id', uc.deleteGenre)
+
 module.exports = router;
