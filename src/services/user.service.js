@@ -142,4 +142,112 @@ class UserService {
             { expiresIn: '7d' }
         );
     }
+
+    // Logic chức năng quên mật khẩu
+    async forgotPassword(email) {
+        try {
+            // Tạo mã OTP 6 chữ số
+            const otp = Math.floor(100000 + Math.random() * 900000); 
+            const user = await User.findOne({ email });
+            const lastOTP = await OTP.findOne({ email }).sort({ createdAt: -1 });
+
+            if (!user) {
+                throw new Error('Email chưa đăng ký tài khoản');
+            }
+            if (lastOTP) {
+                const timeDiff = (Date.now() - lastOTP.createdAt.getTime()) / 1000; 
+                if (timeDiff < 120) {
+                    throw new Error(`OTP đã được gửi, vui lòng thử lại sau ${Math.ceil(120 - timeDiff)} giây`);
+                }
+            }
+            await OTP.create({ email, otp });
+
+            const transporter = nodemailer.createTransport({
+                service: 'Gmail',
+                auth: {
+                    user: process.env.EMAIL_USER,
+                    pass: process.env.EMAIL_PASS,
+                },
+                tls: { rejectUnauthorized: false }
+            });
+
+            const mailOptions = {
+                from: process.env.EMAIL_USER,
+                to: email,
+                subject: 'Password Reset OTP',
+                html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #f9f9f9;">
+                    <div style="text-align: center; padding: 20px; background-color:rgb(59, 205, 186); border-radius: 12px 12px 0 0;">
+                        <h1 style="margin: 0; font-size: 26px; color: #ffffff;">Yêu Cầu Đặt Lại Mật Khẩu</h1>
+                    </div>
+                    <div style="padding: 20px; text-align: center;">
+                        <p style="font-size: 16px; color:rgb(0, 0, 0); line-height: 1.6;">
+                            Bạn đã yêu cầu đặt lại mật khẩu. Vui lòng sử dụng mã OTP bên dưới để xác thực:
+                        </p>
+                        <div style="background-color: #ffffff; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; display: inline-block; margin: 20px 0;">
+                            <p style="font-size: 36px; font-weight: bold; color:rgb(0, 0, 0); margin: 0;">${otp}</p>
+                        </div>
+                        <p style="font-size: 14px; color:rgb(255, 0, 0);">
+                            Mã OTP có hiệu lực trong 5 phút. Vui lòng không chia sẻ mã này với bất kỳ ai.
+                        </p>
+                    </div>
+                    <div style="text-align: center; padding: 20px; background-color: #f1f1f1; border-radius: 0 0 12px 12px; border: 1px solid rgb(6, 6, 6);">
+                        <p style="font-size: 14px; color:rgb(0, 0, 0); margin: 0;">
+                            Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.
+                        </p>
+                    </div>
+                </div>
+                `,
+            };
+
+            await transporter.sendMail(mailOptions);
+            return 'OTP đã được gửi vào email của bạn';
+        } catch (error) {
+            throw new Error(`Lỗi khi gửi OTP: ${error.message}`);
+        }
+    }
+
+    // Logic chức năng xác nhận otp
+    async confirmOTP(email, otp) {
+        try {
+            const otpRecord = await OTP.findOne({ email, otp });
+
+            if (!otpRecord) {
+                throw new Error('OTP không hợp lệ hoặc đã hết hạn');
+            }
+
+            return 'OTP hợp lệ';
+        } catch (error) {
+            throw new Error(`Lỗi khi xác nhận OTP: ${error.message}`);
+        }
+    }
+
+    // Logic chức năng đổi mật khẩu
+    async resetPassword(email, otp, newPassword) {
+        try {
+            const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
+            const user = await User.findOne({ email });
+            const otpRecord = await OTP.findOne({ email, otp });
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+            if (!email || !otp || !newPassword) {
+                throw new Error('Vui lòng nhập đầy đủ thông tin (email, otp, password)');
+            }
+            if (!passwordRegex.test(newPassword)) {
+                throw new Error('Mật khẩu mới phải có ít nhất 6 ký tự, bao gồm chữ và số');
+            }
+            if (!user) {
+                throw new Error('Email không tồn tại');
+            }
+            if (!otpRecord) {
+                throw new Error('OTP không hợp lệ hoặc đã hết hạn');
+            }
+            await User.updateOne({ email }, { $set: { password: hashedPassword } });
+            await OTP.deleteOne({ _id: otpRecord._id });
+            return 'Đổi mật khẩu thành công';
+        } catch (error) {
+            throw new Error(`Lỗi khi đổi mật khẩu: ${error.message}`);
+        }
+    }
 }
