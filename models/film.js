@@ -9,11 +9,13 @@ const filmSchema = db.mongoose.Schema({
     // 1 = Đang chiếu
     // 2 = Đã chiếu xong
     // 3 = Đã hủy
-    genre_film: {
-        type: String,
-        required: true,
 
-    },
+    genre_film: [{
+        type: db.mongoose.Schema.Types.ObjectId,
+        ref: 'Genres', // Liên kết với bảng Genre
+        required: true,
+    }],
+
     trailer_film: {
         type: String,
         required: true,
