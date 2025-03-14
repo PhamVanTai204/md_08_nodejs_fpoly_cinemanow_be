@@ -3,94 +3,21 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const User = require('../models/user');
-const OTP = require('../models/otp.model'); // Import model OTP
+const OTP = require('../models/otp.model'); 
 const createResponse = require('../utils/responseHelper');
 
 
 
 // Đăng ký
-
 exports.reg = async (req, res) => {
-  const { user_name, email, password, url_image, role } = req.body;
-
-  // Kiểm tra thông tin bắt buộc
-  if (!user_name || !email || !password || role === undefined) {
-    return res.status(400).json(createResponse(400, 'Vui lòng điền đầy đủ thông tin', null));
-  }
-
-  // Kiểm tra user_name (chỉ cho phép chữ cái và số, ít nhất 3 ký tự)
-  const usernameRegex = /^[a-zA-Z0-9]{3,}$/;
-  if (!usernameRegex.test(user_name)) {
-    return res.status(400).json(createResponse(400, 'Username không hợp lệ', null));
-  }
-
-  // Kiểm tra password (ít nhất 6 ký tự, có chữ và số)
-  const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
-  if (!passwordRegex.test(password)) {
-    return res.status(400).json(createResponse(400, 'Password không hợp lệ', null));
-  }
-
-  // Kiểm tra email (chỉ chấp nhận @gmail.com)
-  const emailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/;
-  if (!emailRegex.test(email)) {
-    return res.status(400).json(createResponse(400, 'Email phải có đuôi @gmail.com', null));
-  }
-
   try {
-    // Kiểm tra xem user_name hoặc email đã tồn tại chưa
-    let user = await User.findOne({ $or: [{ email }, { user_name }] });
-    if (user) {
-      return res.status(409).json(createResponse(409, 'Email hoặc user_name đã tồn tại', null));
-    }
-
-    // Mã hóa password trước khi lưu
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Tạo user mới
-    user = new User({ user_name, email, password: hashedPassword, url_image, role });
-    await user.save();
-
-    return res.status(201).json(createResponse(201, null, 'Đăng ký thành công'));
+    const result = await UserService.register(req.body);
+    res.status(200).json(createResponse(200, null, result));
   } catch (error) {
-    return res.status(500).json(createResponse(500, 'Lỗi server', error.message));
+    res.status(400).json(createResponse(400, error.message, null));
   }
 };
 
-// Đăng nhập
-exports.login = async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ code: 400, error: 'Vui lòng nhập email và mật khẩu' });
-  }
-
-  try {
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ code: 404, error: 'Email không tồn tại' });
-    }
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ code: 401, error: 'Mật khẩu không đúng' });
-    }
-
-    const token = jwt.sign({ userId: user._id, user_name: user.user_name, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    res.json({
-      code: 200,
-      error: null,
-      data: {
-        userId: user._id,
-        user_name: user.user_name,
-        email: user.email,
-        role: user.role,
-      },
-      token: token,
-    });
-  } catch (error) {
-    res.status(500).json({ code: 500, error: 'Lỗi server', message: error.message });
-  }
-};
 
 // Cấu hình Nodemailer
 

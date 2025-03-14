@@ -29,14 +29,14 @@ const userSchema = db.mongoose.Schema({
   },
   date_of_birth: {
     type: Date,
-    required: false, // Đã sửa lỗi chính tả
+    required: false, 
   },
   gender: {
-    type: Number, // Đã sửa lỗi chính tả
+    type: Number, 
     required: false,
   },
   role: {
-    type: Number, // Đã sửa lỗi chính tả
+    type: Number, 
     required: true,
   }
 
