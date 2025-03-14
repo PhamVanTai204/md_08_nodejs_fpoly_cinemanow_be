@@ -3,11 +3,11 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const User = require('../models/user');
 const OTP = require('../models/otp.model');
-const createResponse = require('../utils/responseHelper');
 const refreshTokens = [];
+
 class UserService {
     //Logic chức năng đăng kí
-    async register(user_data){
+    async register(userData){
         try {
             const { user_name, email, password, url_image, role } = userData;
             const usernameRegex = /^[a-zA-Z0-9]{3,}$/;
@@ -17,7 +17,7 @@ class UserService {
             const salt = await bcrypt.genSalt(10);
             const hashedPassword = await bcrypt.hash(password, salt);
             
-            if (!user_name || !email || !password || role === undefined) {
+            if (!user_name || !email || !password || role === 0) {
                 throw new Error('Vui lòng điền đầy đủ thông tin');
             }
             if (!usernameRegex.test(user_name)) {
@@ -36,7 +36,8 @@ class UserService {
                 user_name, 
                 email, 
                 password: hashedPassword, 
-                url_image, role 
+                url_image, 
+                role 
             });
             //Lưu vào datatbase
             await user.save();
@@ -250,4 +251,27 @@ class UserService {
             throw new Error(`Lỗi khi đổi mật khẩu: ${error.message}`);
         }
     }
+
+    // Lấy danh sách tất cả user (ẩn password)
+     async getAllUsers() {
+        try {
+            return await User.find({}, '-password');
+        } catch (error) {
+            throw new Error(`Lỗi khi lấy danh sách user: ${error.message}`);
+        }
+    }
+
+    // Lấy user theo ID (ẩn password)
+    async getUserById(id) {
+        try {
+            const user = await User.findById(id, '-password');
+            if (!user) {
+                throw new Error('Không tìm thấy user');
+            }
+            return user;
+        } catch (error) {
+            throw new Error(`Lỗi khi lấy user theo ID: ${error.message}`);
+        }
+    }
 }
+module.exports = new UserService();

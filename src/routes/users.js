@@ -1,8 +1,8 @@
 var express = require('express');
 var router = express.Router();
-const uc = require('../controllers/user.controller')
+const uc = require('../controllers/userController')
 
-router.post('/reg', uc.reg)
+router.post('/reg', uc.register)
 router.post('/login', uc.login)
 
 //Nhập email gửi mã OTP 
