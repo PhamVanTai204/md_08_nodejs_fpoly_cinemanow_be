@@ -9,4 +9,6 @@ router.get('/getfilmById/:id', uc.getFilmId)
 router.post('/addfilm', uc.addFilm)
 router.put('/editfilm/:id', uc.updateFilm)
 router.delete('/deletefilm/:id', uc.deleteFilm)
+router.get('/genre/:genreId', uc.getFilmsByGenre);
+
 module.exports = router;
