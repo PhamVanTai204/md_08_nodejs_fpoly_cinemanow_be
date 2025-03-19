@@ -10,24 +10,44 @@ const validateId = (req, res, next) => {
     next();
 };
 
+exports.searchFilm = async (req, res) => {
+    try {
+        const { title } = req.query;
+
+        // Nếu không có title, trả về danh sách trống
+        if (!title) {
+            return res.status(400).json(createResponse(400, 'Vui lòng nhập tiêu đề phim để tìm kiếm', null));
+        }
+
+        // Tìm kiếm phim theo title chứa từ khóa (không phân biệt hoa thường)
+        const query = { title: new RegExp(title, 'i') };
+        const films = await Film.find(query).populate('genre_film');
+
+        res.status(200).json(createResponse(200, null, films));
+    } catch (error) {
+        res.status(500).json(createResponse(500, 'Lỗi khi tìm kiếm phim', error.message));
+    }
+};
+
+
 // Lấy danh sách phim
 exports.getFilm = async (req, res) => {
     try {
-        let { page, limit, keyword } = req.query;
+        let { page, limit } = req.query;
 
+        // Chuyển đổi giá trị thành số nguyên và đặt mặc định nếu không có giá trị
         page = parseInt(page) || 1;
         limit = parseInt(limit) || 10;
         const skip = (page - 1) * limit;
 
-        // Sử dụng $text search nếu có keyword
-        const query = keyword ? { $text: { $search: keyword } } : {};
-
-        const films = await Film.find(query)
+        // Lấy danh sách phim với phân trang
+        const films = await Film.find()
             .populate('genre_film')
             .skip(skip)
             .limit(limit);
 
-        const totalFilms = await Film.countDocuments(query);
+        // Đếm tổng số phim để tính tổng số trang
+        const totalFilms = await Film.countDocuments();
         const totalPages = Math.ceil(totalFilms / limit);
 
         res.status(200).json(createResponse(200, null, {
@@ -43,6 +63,8 @@ exports.getFilm = async (req, res) => {
         res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách phim', error.message));
     }
 };
+
+
 
 
 
