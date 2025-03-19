@@ -13,21 +13,21 @@ const validateId = (req, res, next) => {
 // Lấy danh sách phim
 exports.getFilm = async (req, res) => {
     try {
-        let { page, limit } = req.query;
+        let { page, limit, keyword } = req.query;
 
-        // Chuyển đổi giá trị thành số nguyên và đặt mặc định nếu không có giá trị
         page = parseInt(page) || 1;
         limit = parseInt(limit) || 10;
         const skip = (page - 1) * limit;
 
-        // Lấy danh sách phim với phân trang
-        const films = await Film.find()
+        // Sử dụng $text search nếu có keyword
+        const query = keyword ? { $text: { $search: keyword } } : {};
+
+        const films = await Film.find(query)
             .populate('genre_film')
             .skip(skip)
             .limit(limit);
 
-        // Đếm tổng số phim để tính tổng số trang
-        const totalFilms = await Film.countDocuments();
+        const totalFilms = await Film.countDocuments(query);
         const totalPages = Math.ceil(totalFilms / limit);
 
         res.status(200).json(createResponse(200, null, {
@@ -63,14 +63,13 @@ exports.getFilmId = async (req, res) => {
 const Genre = require('../models/genres'); // Import model Genre
 
 exports.addFilm = async (req, res) => {
-    const { status_film, genre_film, trailer_film, duration, release_date, end_date, image_film, title, describe } = req.body;
+    const { status_film, genre_film, trailer_film, duration, release_date, end_date, image_film, title, describe, cast, ratings, box_office } = req.body;
 
-    if (!status_film || !genre_film || !title || !describe) {
+    if (!status_film || !genre_film || !title || !describe || !cast || ratings === undefined || box_office === undefined) {
         return res.status(400).json(createResponse(400, 'Thiếu thông tin bắt buộc', null));
     }
 
     try {
-        // Kiểm tra xem tất cả ID thể loại có hợp lệ không
         const existingGenres = await Genre.find({ _id: { $in: genre_film } });
         if (existingGenres.length !== genre_film.length) {
             return res.status(400).json(createResponse(400, 'Một hoặc nhiều thể loại không tồn tại', null));
@@ -85,7 +84,10 @@ exports.addFilm = async (req, res) => {
             end_date,
             image_film,
             title,
-            describe
+            describe,
+            cast,
+            ratings,
+            box_office
         });
 
         await film.save();

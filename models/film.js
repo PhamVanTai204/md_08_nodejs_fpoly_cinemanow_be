@@ -44,6 +44,18 @@ const filmSchema = db.mongoose.Schema({
     describe: {
         type: String,
         required: true
+    },
+    cast: {
+        type: String,
+        require: true
+    },
+    ratings: {
+        type: Number,
+        required: true,
+    },
+    box_office: {
+        type: Number,
+        require: false
     }
 
 });
