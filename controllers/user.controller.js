@@ -111,8 +111,8 @@ exports.forgotPassword = async (req, res) => {
 
     if (lastOTP) {
       const timeDiff = (Date.now() - lastOTP.createdAt.getTime()) / 1000; // Tính thời gian trôi qua (giây)
-      if (timeDiff < 120) {
-        return res.status(400).json(createResponse(400, `OTP đã được gửi tới emai của bạn, vui lòng thử lại sau ${Math.ceil(120 - timeDiff)} giây`, null));
+      if (timeDiff < 60) {
+        return res.status(400).json(createResponse(400, `OTP đã được gửi tới emai của bạn, vui lòng thử lại sau ${Math.ceil(60 - timeDiff)} giây`, null));
       }
     }
 
