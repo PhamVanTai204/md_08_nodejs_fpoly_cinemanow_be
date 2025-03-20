@@ -56,6 +56,18 @@ const filmSchema = db.mongoose.Schema({
     box_office: {
         type: Number,
         require: false
+    },
+    director: {
+        type: String,
+        require: false
+    },
+    age_limit: {
+        type: Number,
+        require: false
+    },
+    language: {
+        type: String,
+        require: false
     }
 
 });

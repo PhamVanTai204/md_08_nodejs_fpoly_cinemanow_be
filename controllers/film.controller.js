@@ -85,9 +85,25 @@ exports.getFilmId = async (req, res) => {
 const Genre = require('../models/genres'); // Import model Genre
 
 exports.addFilm = async (req, res) => {
-    const { status_film, genre_film, trailer_film, duration, release_date, end_date, image_film, title, describe, cast, ratings, box_office } = req.body;
+    const {
+        status_film,
+        genre_film,
+        trailer_film,
+        duration,
+        release_date,
+        end_date,
+        image_film,
+        title,
+        describe,
+        cast,
+        ratings,
+        box_office,
+        director,
+        age_limit,
+        language
+    } = req.body;
 
-    if (!status_film || !genre_film || !title || !describe || !cast || ratings === undefined || box_office === undefined) {
+    if (!status_film || !genre_film || !title || !describe || !cast || ratings === undefined || box_office === undefined || !director || !age_limit || !language) {
         return res.status(400).json(createResponse(400, 'Thiếu thông tin bắt buộc', null));
     }
 
@@ -109,7 +125,10 @@ exports.addFilm = async (req, res) => {
             describe,
             cast,
             ratings,
-            box_office
+            box_office,
+            director,
+            age_limit,
+            language
         });
 
         await film.save();
@@ -118,6 +137,7 @@ exports.addFilm = async (req, res) => {
         res.status(500).json(createResponse(500, 'Lỗi khi thêm phim', error.message));
     }
 };
+
 
 
 // Cập nhật phim
