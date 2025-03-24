@@ -55,12 +55,10 @@ exports.getCinema = async (req, res) => {
 
         res.status(200).json(createResponse(200, null, {
             cinemas,
-            pagination: {
-                totalCinemas,
-                totalPages,
-                currentPage: page,
-                pageSize: limit
-            }
+            totalCinemas,
+            totalPages,
+            currentPage: page,
+            pageSize: limit
         }));
     } catch (error) {
         res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách rạp phim', error.message));
