@@ -19,18 +19,8 @@ exports.getBanners = async (req, res) => {
             .skip(skip)
             .limit(limit);
 
-        // Đếm tổng số banner để tính tổng số trang
-        const totalBanners = await Banner.countDocuments();
-        const totalPages = Math.ceil(totalBanners / limit);
-
         res.status(200).json(createResponse(200, null, {
             banners,
-            pagination: {
-                totalBanners,
-                totalPages,
-                currentPage: page,
-                pageSize: limit
-            }
         }));
     } catch (error) {
         res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách banner', error.message));
