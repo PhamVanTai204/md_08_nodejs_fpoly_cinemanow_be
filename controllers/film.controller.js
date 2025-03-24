@@ -1,6 +1,7 @@
 const express = require('express');
 const Film = require('../models/film');
 const createResponse = require('../utils/responseHelper');
+const Genre = require('../models/genres'); // Import model Genre
 
 // Middleware kiểm tra ID hợp lệ
 const validateId = (req, res, next) => {
@@ -52,10 +53,10 @@ exports.getFilm = async (req, res) => {
 
         res.status(200).json(createResponse(200, null, {
             films,
-                totalFilms,
-                totalPages,
-                currentPage: page,
-                pageSize: limit
+            totalFilms,
+            totalPages,
+            currentPage: page,
+            pageSize: limit
         }));
     } catch (error) {
         res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách phim', error.message));
@@ -80,7 +81,6 @@ exports.getFilmId = async (req, res) => {
 };
 
 // Thêm phim
-const Genre = require('../models/genres'); // Import model Genre
 
 exports.addFilm = async (req, res) => {
     const {
@@ -209,12 +209,10 @@ exports.getFilmsByGenre = async (req, res) => {
 
         res.status(200).json(createResponse(200, null, {
             films,
-            pagination: {
-                totalFilms,
-                totalPages,
-                currentPage: page,
-                pageSize: limit
-            }
+            totalFilms,
+            totalPages,
+            currentPage: page,
+            pageSize: limit
         }));
     } catch (error) {
         res.status(500).json(createResponse(500, 'Lỗi khi lấy phim theo thể loại', error.message));
