@@ -1,0 +1,23 @@
+var express = require('express');
+var router = express.Router();
+const cinemaController = require('../controllers/cinema.controller'); // Đảm bảo đường dẫn chính xác
+
+// Lấy hết rạp phim
+router.get('/getcinema', cinemaController.getCinema);
+
+// Lấy rạp phim theo ID
+router.get('/getcinemaById/:id', cinemaController.getCinemaId);
+
+// Thêm rạp phim
+router.post('/addcinema', cinemaController.addCinema);
+
+// Cập nhật rạp phim
+router.put('/editcinema/:id', cinemaController.updateCinema);
+
+// Xóa rạp phim
+router.delete('/deletecinema/:id', cinemaController.deleteCinema);
+
+// Tìm kiếm rạp phim theo tên hoặc địa điểm
+router.get('/search', cinemaController.searchCinema);
+
+module.exports = router;

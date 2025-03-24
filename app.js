@@ -14,6 +14,7 @@ dotenv.config();
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
 var filmRouter = require('./routes/film');
+var cinemaRouter = require('./routes/cinema')
 var showTimeRoutes = require('./routes/showTime'); // Import routes suất chiếu
 var genres = require('./routes/genres');
 
@@ -34,7 +35,7 @@ app.use('/users', usersRouter);
 app.use('/films', filmRouter);
 app.use('/showtimes', showTimeRoutes); // Định nghĩa tiền tố URL
 app.use('/genres', genres);
-
+app.use('/cinema', cinemaRouter)
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
   next(createError(404));
