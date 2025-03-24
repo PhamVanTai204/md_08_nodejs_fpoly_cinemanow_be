@@ -52,12 +52,10 @@ exports.getFilm = async (req, res) => {
 
         res.status(200).json(createResponse(200, null, {
             films,
-            pagination: {
                 totalFilms,
                 totalPages,
                 currentPage: page,
                 pageSize: limit
-            }
         }));
     } catch (error) {
         res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách phim', error.message));
