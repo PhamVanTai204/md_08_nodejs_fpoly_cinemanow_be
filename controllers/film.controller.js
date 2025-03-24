@@ -222,3 +222,4 @@ exports.getFilmsByGenre = async (req, res) => {
         res.status(500).json(createResponse(500, 'Lỗi khi lấy phim theo thể loại', error.message));
     }
 };
+
