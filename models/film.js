@@ -47,7 +47,7 @@ const filmSchema = db.mongoose.Schema({
     },
     cast: {
         type: String,
-        require: true
+        required: true
     },
     ratings: {
         type: Number,
@@ -55,19 +55,19 @@ const filmSchema = db.mongoose.Schema({
     },
     box_office: {
         type: Number,
-        require: false
+        required: false
     },
     director: {
         type: String,
-        require: false
+        required: false
     },
     age_limit: {
         type: Number,
-        require: false
+        required: false
     },
     language: {
         type: String,
-        require: false
+        required: false
     }
 
 });

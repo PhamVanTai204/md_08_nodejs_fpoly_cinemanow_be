@@ -52,10 +52,10 @@ exports.getFilm = async (req, res) => {
 
         res.status(200).json(createResponse(200, null, {
             films,
-                totalFilms,
-                totalPages,
-                currentPage: page,
-                pageSize: limit
+            totalFilms,
+            totalPages,
+            currentPage: page,
+            pageSize: limit
         }));
     } catch (error) {
         res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách phim', error.message));
@@ -101,7 +101,7 @@ exports.addFilm = async (req, res) => {
         language
     } = req.body;
 
-    if (!status_film || !genre_film || !title || !describe || !cast || ratings === undefined || box_office === undefined || !director || !age_limit || !language) {
+    if (status_film === undefined || status_film === null || !genre_film || !title || !describe || !cast || ratings === undefined || box_office === undefined || !director || !age_limit || !language) {
         return res.status(400).json(createResponse(400, 'Thiếu thông tin bắt buộc', null));
     }
 
