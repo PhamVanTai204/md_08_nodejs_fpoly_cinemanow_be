@@ -19,9 +19,7 @@ exports.getBanners = async (req, res) => {
             .skip(skip)
             .limit(limit);
 
-        res.status(200).json(createResponse(200, null, {
-            banners,
-        }));
+        res.status(200).json(createResponse(200, null, banners));
     } catch (error) {
         res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách banner', error.message));
     }
@@ -108,6 +106,7 @@ exports.updateBanner = async (req, res) => {
         res.status(500).json(createResponse(500, 'Lỗi khi cập nhật banner', error.message));
     }
 };
+
 
 // Xóa banner
 exports.deleteBanner = async (req, res) => {
