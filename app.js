@@ -18,6 +18,7 @@ var cinemaRouter = require('./routes/cinema')
 var showTimeRoutes = require('./routes/showTime'); // Import routes suất chiếu
 var genres = require('./routes/genres');
 var roomRouter = require('./routes/room');
+var seatRouter = require('./routes/seat'); // Import routes seat
 
 var bannerRouter = require('./routes/banner'); // Import routes banner
 
@@ -41,6 +42,7 @@ app.use('/genres', genres);
 app.use('/cinema', cinemaRouter)
 app.use('/banners', bannerRouter); // Định nghĩa tiền tố URL cho banner
 app.use('/room', roomRouter)
+app.use('/seats', seatRouter); // Thêm route cho seat
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

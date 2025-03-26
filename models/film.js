@@ -68,7 +68,11 @@ const filmSchema = db.mongoose.Schema({
     language: {
         type: String,
         required: false
-    }
+    },
+    showtimes: [{
+        type: db.mongoose.Schema.Types.ObjectId,
+        ref: 'ShowTime'
+    }]
 
 });
 

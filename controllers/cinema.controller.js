@@ -1,3 +1,4 @@
+const express = require('express');
 const Cinema = require('../models/cinema');
 const createResponse = require('../utils/responseHelper');
 
@@ -34,22 +35,20 @@ exports.searchCinema = async (req, res) => {
     }
 };
 
-// Lấy danh sách rạp phim
-exports.getCinema = async (req, res) => {
+// Lấy danh sách rạp chiếu
+exports.getCinemas = async (req, res) => {
     try {
         let { page, limit } = req.query;
-
-        // Chuyển đổi giá trị thành số nguyên và đặt mặc định nếu không có giá trị
         page = parseInt(page) || 1;
         limit = parseInt(limit) || 10;
         const skip = (page - 1) * limit;
 
-        // Lấy danh sách rạp phim với phân trang
+        // Lấy danh sách rạp chiếu với phân trang
         const cinemas = await Cinema.find()
             .skip(skip)
             .limit(limit);
 
-        // Đếm tổng số rạp phim để tính tổng số trang
+        // Đếm tổng số rạp chiếu
         const totalCinemas = await Cinema.countDocuments();
         const totalPages = Math.ceil(totalCinemas / limit);
 
@@ -61,73 +60,86 @@ exports.getCinema = async (req, res) => {
             pageSize: limit
         }));
     } catch (error) {
-        res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách rạp phim', error.message));
+        res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách rạp chiếu', error.message));
     }
 };
 
-// Lấy rạp phim theo ID
-exports.getCinemaId = async (req, res) => {
+// Lấy rạp chiếu theo ID
+exports.getCinemaById = async (req, res) => {
     try {
         const cinema = await Cinema.findById(req.params.id);
         if (!cinema) {
-            return res.status(404).json(createResponse(404, 'Không tìm thấy rạp phim', null));
+            return res.status(404).json(createResponse(404, 'Không tìm thấy rạp chiếu', null));
         }
         res.status(200).json(createResponse(200, null, cinema));
     } catch (error) {
-        res.status(500).json(createResponse(500, 'Lỗi khi lấy rạp phim', error.message));
+        res.status(500).json(createResponse(500, 'Lỗi khi lấy thông tin rạp chiếu', error.message));
     }
 };
 
-// Thêm rạp phim
+// Thêm rạp chiếu mới
 exports.addCinema = async (req, res) => {
-    const { cinema_name, location } = req.body;
-
-    if (!cinema_name || !location) {
-        return res.status(400).json(createResponse(400, 'Thiếu thông tin bắt buộc', null));
-    }
-
     try {
-        const cinema = new Cinema({
+        const { cinema_name, location } = req.body;
+
+        // Kiểm tra thông tin bắt buộc
+        if (!cinema_name || !location) {
+            return res.status(400).json(createResponse(400, 'Thiếu thông tin bắt buộc', null));
+        }
+
+        // Tạo rạp chiếu mới
+        const newCinema = new Cinema({
             cinema_name,
             location
         });
 
-        await cinema.save();
-        res.status(201).json(createResponse(201, null, 'Thêm rạp phim thành công'));
+        await newCinema.save();
+        res.status(201).json(createResponse(201, 'Thêm rạp chiếu thành công', newCinema));
     } catch (error) {
-        res.status(500).json(createResponse(500, 'Lỗi khi thêm rạp phim', error.message));
+        res.status(500).json(createResponse(500, 'Lỗi khi thêm rạp chiếu', error.message));
     }
 };
 
-// Cập nhật rạp phim
+// Cập nhật rạp chiếu
 exports.updateCinema = async (req, res) => {
     try {
+        const { cinema_name, location } = req.body;
+        const cinemaId = req.params.id;
+
+        // Kiểm tra rạp chiếu tồn tại
+        const cinema = await Cinema.findById(cinemaId);
+        if (!cinema) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy rạp chiếu', null));
+        }
+
+        // Cập nhật thông tin
         const updatedCinema = await Cinema.findByIdAndUpdate(
-            req.params.id,
-            req.body,
+            cinemaId,
+            { cinema_name, location },
             { new: true, runValidators: true }
         );
 
-        if (!updatedCinema) {
-            return res.status(404).json(createResponse(404, 'Không tìm thấy rạp phim', null));
-        }
-
-        res.status(200).json(createResponse(200, null, 'Cập nhật rạp phim thành công'));
+        res.status(200).json(createResponse(200, 'Cập nhật rạp chiếu thành công', updatedCinema));
     } catch (error) {
-        res.status(500).json(createResponse(500, 'Lỗi khi cập nhật rạp phim', error.message));
+        res.status(500).json(createResponse(500, 'Lỗi khi cập nhật rạp chiếu', error.message));
     }
 };
 
-// Xóa rạp phim
+// Xóa rạp chiếu
 exports.deleteCinema = async (req, res) => {
     try {
-        const deletedCinema = await Cinema.findByIdAndDelete(req.params.id);
-        if (!deletedCinema) {
-            return res.status(404).json(createResponse(404, 'Không tìm thấy rạp phim', null));
+        const cinemaId = req.params.id;
+
+        // Kiểm tra rạp chiếu tồn tại
+        const cinema = await Cinema.findById(cinemaId);
+        if (!cinema) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy rạp chiếu', null));
         }
 
-        res.status(200).json(createResponse(200, null, 'Xóa rạp phim thành công'));
+        // Xóa rạp chiếu
+        await Cinema.findByIdAndDelete(cinemaId);
+        res.status(200).json(createResponse(200, 'Xóa rạp chiếu thành công', null));
     } catch (error) {
-        res.status(500).json(createResponse(500, 'Lỗi khi xóa rạp phim', error.message));
+        res.status(500).json(createResponse(500, 'Lỗi khi xóa rạp chiếu', error.message));
     }
 };

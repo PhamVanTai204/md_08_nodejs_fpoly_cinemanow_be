@@ -29,28 +29,33 @@ exports.getShowTimeById = async (req, res) => {
 
 // Thêm suất chiếu mới
 exports.addShowTime = async (req, res) => {
-    const { movie_id, showtime_status, start_time, end_time, price } = req.body;
+    const { movie_id, showtime_status, start_time, end_time, date, room_id } = req.body;
 
-    if (!movie_id || !start_time || !end_time || !price) {
+    if (!movie_id || !start_time || !end_time || !date || !room_id) {
         return res.status(400).json(createResponse(400, 'Thiếu thông tin bắt buộc', null));
     }
 
     try {
-        // Kiểm tra xem phim có tồn tại không
-        const film = await Film.findById(movie_id);
-        if (!film) {
-            return res.status(404).json(createResponse(404, 'Không tìm thấy phim', null));
-        }
-
+        // Tạo suất chiếu mới
         const showTime = new ShowTime({
+            showtime_id: `ST${Date.now()}`, // Tạo mã suất chiếu tự động
             movie_id,
-            showtime_status,
+            date,
             start_time,
             end_time,
-            price
+            room_id,
+            status: showtime_status || 1 // Mặc định là sắp chiếu
         });
 
-        await showTime.save();
+        // Lưu suất chiếu
+        const savedShowTime = await showTime.save();
+
+        // Sau khi lưu suất chiếu thành công, cập nhật vào film
+        await Film.findByIdAndUpdate(
+            movie_id,
+            { $push: { showtimes: savedShowTime._id } }
+        );
+
         res.status(201).json(createResponse(201, null, 'Thêm suất chiếu thành công'));
     } catch (error) {
         const statusCode = error.name === 'ValidationError' ? 400 : 500;
@@ -102,5 +107,41 @@ exports.deleteShowTime = async (req, res) => {
         res.status(200).json(createResponse(200, null, 'Xóa suất chiếu thành công'));
     } catch (error) {
         res.status(500).json(createResponse(500, 'Lỗi khi xóa suất chiếu', error.message));
+    }
+};
+
+// Lấy danh sách phim có suất chiếu
+exports.getFilmsWithShowTimes = async (req, res) => {
+    try {
+        // Lấy tất cả suất chiếu và populate thông tin phim
+        const showTimes = await ShowTime.find()
+            .populate('movie_id')
+            .populate('room_id');
+
+        // Nhóm suất chiếu theo phim
+        const filmsWithShowtimes = showTimes.reduce((acc, showtime) => {
+            const film = showtime.movie_id;
+            // Kiểm tra xem film có tồn tại không
+            if (!film) return acc;
+            
+            if (!acc[film._id]) {
+                acc[film._id] = {
+                    ...film.toObject(),
+                    showtimes: []
+                };
+            }
+            acc[film._id].showtimes.push({
+                showtime_id: showtime.showtime_id,
+                date: showtime.date,
+                start_time: showtime.start_time,
+                room_id: showtime.room_id,
+                status: showtime.status
+            });
+            return acc;
+        }, {});
+
+        res.status(200).json(createResponse(200, null, Object.values(filmsWithShowtimes)));
+    } catch (error) {
+        res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách phim có suất chiếu', error.message));
     }
 };
