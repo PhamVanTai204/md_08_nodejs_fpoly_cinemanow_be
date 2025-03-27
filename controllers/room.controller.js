@@ -96,15 +96,21 @@ exports.addRoom = async (req, res) => {
             return res.status(400).json(createResponse(400, 'Tên phòng đã tồn tại trong rạp này', null));
         }
 
+        // Tạo phòng mới
         const room = new Room({
             cinema_id,
             room_name,
             room_style,
             total_seat,
-            status: 'active' // Mặc định là active khi tạo mới
+            status: 'active'
         });
 
         const savedRoom = await room.save();
+
+        // Cập nhật total_room của cinema
+        cinema.total_room += 1;
+        await cinema.save();
+
         await savedRoom.populate('cinema_id');
         res.status(201).json(createResponse(201, 'Tạo phòng mới thành công', savedRoom));
     } catch (error) {
@@ -190,6 +196,13 @@ exports.deleteRoom = async (req, res) => {
         const room = await Room.findById(req.params.id);
         if (!room) {
             return res.status(404).json(createResponse(404, 'Không tìm thấy phòng', null));
+        }
+
+        // Lấy thông tin cinema để cập nhật total_room
+        const cinema = await Cinema.findById(room.cinema_id);
+        if (cinema) {
+            cinema.total_room = Math.max(0, cinema.total_room - 1); // Đảm bảo không âm
+            await cinema.save();
         }
 
         await Room.deleteOne({ _id: req.params.id });
