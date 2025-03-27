@@ -1,20 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const roomController = require('../controllers/room.controller');
+const { verifyToken } = require('../middleware/auth');
 
-// Lấy danh sách phòng chiếu
-router.get('/', roomController.getRooms);
+// Routes không cần xác thực (công khai)
+router.get('/get-all', roomController.getRooms); // Lấy tất cả phòng
+router.get('/get-by-id/:id', roomController.getRoomById); // Lấy phòng theo ID
+router.get('/get-by-cinema/:cinemaId', roomController.getRoomsByCinema); // Lấy phòng theo rạp
 
-// Lấy phòng chiếu theo ID
-router.get('/:id', roomController.getRoomById);
-
-// Thêm phòng chiếu mới
-router.post('/', roomController.addRoom);
-
-// Cập nhật phòng chiếu
-router.put('/:id', roomController.updateRoom);
-
-// Xóa phòng chiếu
-router.delete('/:id', roomController.deleteRoom);
+// Routes cần xác thực
+router.post('/create', verifyToken, roomController.addRoom); // Thêm phòng mới
+router.put('/update/:id', verifyToken, roomController.updateRoom); // Cập nhật phòng
+router.delete('/delete/:id', verifyToken, roomController.deleteRoom); // Xóa phòng
 
 module.exports = router;

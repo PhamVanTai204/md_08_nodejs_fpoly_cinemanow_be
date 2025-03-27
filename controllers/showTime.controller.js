@@ -14,92 +14,92 @@ exports.getShowTimes = async (req, res) => {
 };
 
 
-// Lấy suất chiếu theo ID
+// Lấy chi tiết suất chiếu theo ID
 exports.getShowTimeById = async (req, res) => {
     try {
-        const showTime = await ShowTime.findById(req.params.id).populate('movie_id');
+        console.log('Searching for showtime with ID:', req.params.id);
+        
+        // Tìm suất chiếu theo showtime_id
+        const showTime = await ShowTime.findOne({ showtime_id: req.params.id })
+            .populate('movie_id') // Lấy thông tin phim
+            .populate('room_id'); // Lấy thông tin phòng
+
+        console.log('Found showtime:', showTime);
+
         if (!showTime) {
-            return res.status(404).json(createResponse(404, 'Không tìm thấy suất chiếu', null));
+            return res.status(404).json(createResponse(404, 'Không tìm thấy suất chiếu với ID này', null));
         }
+
         res.status(200).json(createResponse(200, null, showTime));
     } catch (error) {
-        res.status(500).json(createResponse(500, 'Lỗi khi lấy suất chiếu', error.message));
+        console.error('Error in getShowTimeById:', error);
+        res.status(500).json(createResponse(500, 'Lỗi khi lấy thông tin suất chiếu', error.message));
     }
 };
 
 // Thêm suất chiếu mới
 exports.addShowTime = async (req, res) => {
-    const { movie_id, showtime_status, start_time, end_time, date, room_id } = req.body;
+    const { movie_id, start_time, date, room_id } = req.body;
 
-    if (!movie_id || !start_time || !end_time || !date || !room_id) {
-        return res.status(400).json(createResponse(400, 'Thiếu thông tin bắt buộc', null));
+    if (!movie_id || !start_time || !date || !room_id) {
+        return res.status(400).json(createResponse(400, 'Vui lòng nhập đầy đủ: movie_id, start_time, date, room_id', null));
     }
 
     try {
         // Tạo suất chiếu mới
         const showTime = new ShowTime({
-            showtime_id: `ST${Date.now()}`, // Tạo mã suất chiếu tự động
+            showtime_id: `ST${Date.now()}`,
             movie_id,
             date,
             start_time,
-            end_time,
             room_id,
-            status: showtime_status || 1 // Mặc định là sắp chiếu
+            status: 1 // Mặc định là sắp chiếu
         });
 
         // Lưu suất chiếu
-        const savedShowTime = await showTime.save();
-
-        // Sau khi lưu suất chiếu thành công, cập nhật vào film
-        await Film.findByIdAndUpdate(
-            movie_id,
-            { $push: { showtimes: savedShowTime._id } }
-        );
+        await showTime.save();
 
         res.status(201).json(createResponse(201, null, 'Thêm suất chiếu thành công'));
     } catch (error) {
-        const statusCode = error.name === 'ValidationError' ? 400 : 500;
-        res.status(statusCode).json(createResponse(statusCode, 'Lỗi khi thêm suất chiếu', error.message));
+        res.status(500).json(createResponse(500, 'Lỗi khi thêm suất chiếu', error.message));
     }
 };
 
 // Cập nhật suất chiếu
 exports.updateShowTime = async (req, res) => {
     const { id } = req.params;
-    const { movie_id, showtime_status, start_time, end_time, price } = req.body;
-
-    // Kiểm tra nếu ID không hợp lệ
-    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
-        return res.status(400).json(createResponse(400, 'ID suất chiếu không hợp lệ', null));
-    }
+    const { movie_id, showtime_status, start_time, end_time, date, room_id } = req.body;
 
     try {
         // Kiểm tra suất chiếu có tồn tại không
-        const existingShowTime = await ShowTime.findById(id);
+        const existingShowTime = await ShowTime.findOne({ showtime_id: id });
         if (!existingShowTime) {
             return res.status(404).json(createResponse(404, 'Không tìm thấy suất chiếu', null));
         }
 
         // Cập nhật suất chiếu
-        existingShowTime.movie_id = movie_id || existingShowTime.movie_id;
-        existingShowTime.showtime_status = showtime_status !== undefined ? showtime_status : existingShowTime.showtime_status;
-        existingShowTime.start_time = start_time || existingShowTime.start_time;
-        existingShowTime.end_time = end_time || existingShowTime.end_time;
-        existingShowTime.price = price !== undefined ? price : existingShowTime.price;
+        if (movie_id) existingShowTime.movie_id = movie_id;
+        if (showtime_status !== undefined) existingShowTime.status = showtime_status;
+        if (start_time) existingShowTime.start_time = start_time;
+        if (end_time) existingShowTime.end_time = end_time;
+        if (date) existingShowTime.date = date;
+        if (room_id) existingShowTime.room_id = room_id;
 
-        await existingShowTime.save();
+        // Lưu suất chiếu đã cập nhật
+        const updatedShowTime = await existingShowTime.save();
 
-        res.status(200).json(createResponse(200, null, 'Cập nhật suất chiếu thành công'));
+        // Trả về suất chiếu đã cập nhật
+        res.status(200).json(createResponse(200, null, updatedShowTime));
     } catch (error) {
+        console.error('Error updating showtime:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi cập nhật suất chiếu', error.message));
     }
 };
 
-
 // Xóa suất chiếu
 exports.deleteShowTime = async (req, res) => {
     try {
-        const deletedShowTime = await ShowTime.findByIdAndDelete(req.params.id);
+        const deletedShowTime = await ShowTime.findOneAndDelete({ showtime_id: req.params.id });
         if (!deletedShowTime) {
             return res.status(404).json(createResponse(404, 'Không tìm thấy suất chiếu', null));
         }

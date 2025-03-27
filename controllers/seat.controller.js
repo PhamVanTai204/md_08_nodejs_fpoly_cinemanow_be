@@ -131,4 +131,34 @@ exports.deleteSeat = async (req, res) => {
     } catch (error) {
         res.status(500).json(createResponse(500, 'Lỗi khi xóa ghế', error.message));
     }
+};
+
+// Lấy tất cả ghế
+exports.getSeats = async (req, res) => {
+    try {
+        let { page, limit } = req.query;
+        page = parseInt(page) || 1;
+        limit = parseInt(limit) || 10;
+        const skip = (page - 1) * limit;
+
+        // Lấy danh sách ghế với phân trang
+        const seats = await Seat.find()
+            .populate('room_id') // Lấy thông tin phòng kèm theo
+            .skip(skip)
+            .limit(limit);
+
+        // Đếm tổng số ghế
+        const totalSeats = await Seat.countDocuments();
+        const totalPages = Math.ceil(totalSeats / limit);
+
+        res.status(200).json(createResponse(200, null, {
+            seats,
+            totalSeats,
+            totalPages,
+            currentPage: page,
+            pageSize: limit
+        }));
+    } catch (error) {
+        res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách ghế', error.message));
+    }
 }; 

@@ -19,9 +19,20 @@ exports.searchFilm = async (req, res) => {
             return res.status(400).json(createResponse(400, 'Vui lòng nhập tiêu đề phim để tìm kiếm', null));
         }
 
-        // Tìm kiếm phim theo title chứa từ khóa (không phân biệt hoa thường)
-        const query = { title: new RegExp(title, 'i') };
-        const films = await Film.find(query).populate('genre_film');
+        // Tạo query tìm kiếm với nhiều điều kiện
+        const searchQuery = {
+            $or: [
+                // Tìm theo title chính xác (không phân biệt hoa thường)
+                { title: new RegExp(title, 'i') },
+                // Tìm theo title có chứa từ khóa
+                { title: new RegExp(title.split(' ').join('.*'), 'i') },
+                // Tìm theo mô tả phim
+                { describe: new RegExp(title, 'i') }
+            ]
+        };
+
+        // Thực hiện tìm kiếm
+        const films = await Film.find(searchQuery).populate('genre_film');
 
         res.status(200).json(createResponse(200, null, films));
     } catch (error) {

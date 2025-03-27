@@ -1,11 +1,15 @@
-var express = require('express');
-var router = express.Router();
-const uc = require('../controllers/genres.controller')
-router.post('/create', uc.createGenre)
-router.get('/getAll', uc.getAllGenres)
-router.get('/getById/:id', uc.getGenreById)
+const express = require('express');
+const router = express.Router();
+const genreController = require('../controllers/genres.controller');
+const { verifyToken } = require('../middleware/auth');
 
-router.put('/update/:id', uc.updateGenre)
-router.delete('/delete/:id', uc.deleteGenre)
+// Routes không cần xác thực (công khai)
+router.get('/get-all', genreController.getAllGenres); // Lấy tất cả thể loại
+router.get('/get-by-id/:id', genreController.getGenreById); // Lấy thể loại theo ID
+
+// Routes cần xác thực
+router.post('/create', verifyToken, genreController.createGenre); // Thêm thể loại mới
+router.put('/update/:id', verifyToken, genreController.updateGenre); // Cập nhật thể loại
+router.delete('/delete/:id', verifyToken, genreController.deleteGenre); // Xóa thể loại
 
 module.exports = router;
