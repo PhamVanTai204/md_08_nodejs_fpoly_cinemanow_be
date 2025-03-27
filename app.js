@@ -21,6 +21,7 @@ var roomRouter = require('./routes/room');
 var seatRouter = require('./routes/seat'); // Import routes seat
 var voucherRouter = require('./routes/voucher'); // Import routes voucher
 var comboRouter = require('./routes/combo'); // Import routes combo
+var ticketRouter = require('./routes/ticket'); // Import routes ticket
 
 var bannerRouter = require('./routes/banner'); // Import routes banner
 
@@ -47,6 +48,7 @@ app.use('/room', roomRouter);
 app.use('/seats', seatRouter); // Định nghĩa tiền tố URL cho seat
 app.use('/vouchers', voucherRouter); // Định nghĩa tiền tố URL cho voucher
 app.use('/combos', comboRouter); // Định nghĩa tiền tố URL cho combo
+app.use('/tickets', ticketRouter); // Định nghĩa tiền tố URL cho ticket
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
