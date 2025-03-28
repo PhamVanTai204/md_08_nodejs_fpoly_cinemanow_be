@@ -4,6 +4,7 @@ const Film = require('../models/film'); // Import model phim
 const Room = require('../models/room');
 const createResponse = require('../utils/responseHelper');
 const mongoose = require('mongoose');
+const Cinema = require('../models/cinema');
 
 // Lấy tất cả suất chiếu
 exports.getAllShowTimes = async (req, res) => {
@@ -164,5 +165,62 @@ exports.deleteShowTime = async (req, res) => {
     } catch (error) {
         console.error('Delete show time error:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi xóa suất chiếu', null));
+    }
+};
+
+// API Mobile - Lấy suất chiếu theo phim và location
+exports.getShowTimesByMovieLocation = async (req, res) => {
+    try {
+        const movie_id = req.params.movie_id;
+        const { location } = req.query;
+
+        if (!mongoose.Types.ObjectId.isValid(movie_id)) {
+            return res.status(400).json(createResponse(400, 'ID phim không hợp lệ', null));
+        }
+
+        // Lấy danh sách rạp theo location
+        const cinemas = await Cinema.find({ location });
+        if (!cinemas.length) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy rạp tại địa điểm này', null));
+        }
+
+        const cinemaIds = cinemas.map(cinema => cinema._id);
+
+        // Lấy danh sách phòng của các rạp
+        const rooms = await Room.find({ cinema_id: { $in: cinemaIds } });
+        const roomIds = rooms.map(room => room._id);
+
+        // Lấy suất chiếu theo phim và phòng
+        const showTimes = await ShowTime.find({
+            movie_id,
+            room_id: { $in: roomIds }
+        })
+        .populate('movie_id')
+        .populate({
+            path: 'room_id',
+            populate: {
+                path: 'cinema_id'
+            }
+        })
+        .sort({ start_time: 1 });
+
+        if (!showTimes.length) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy suất chiếu tại địa điểm này', null));
+        }
+
+        // Nhóm suất chiếu theo rạp
+        const result = cinemas.map(cinema => ({
+            cinema_id: cinema._id,
+            cinema_name: cinema.name,
+            cinema_address: cinema.address,
+            showtimes: showTimes.filter(
+                showtime => showtime.room_id.cinema_id._id.toString() === cinema._id.toString()
+            )
+        })).filter(item => item.showtimes.length > 0);
+
+        res.json(createResponse(200, null, result));
+    } catch (error) {
+        console.error('Get show times by location error:', error);
+        res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách suất chiếu', null));
     }
 };
