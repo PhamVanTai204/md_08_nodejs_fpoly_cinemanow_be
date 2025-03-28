@@ -21,6 +21,11 @@ const ticketSchema = new mongoose.Schema({
         ref: 'Voucher',
         default: null
     },
+    total_amount: {
+        type: Number,
+        required: true,
+        min: 0
+    },
     status: {
         type: String,
         enum: ['pending', 'confirmed', 'cancelled'],
