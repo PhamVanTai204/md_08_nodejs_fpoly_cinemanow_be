@@ -263,3 +263,20 @@ exports.getUserById = async (req, res) => {
     res.status(500).json(createResponse(500, 'Lỗi server', error.message));
   }
 };
+exports.getUsersByRole = async (req, res) => {
+  try {
+    const { role } = req.query;
+
+    // Kiểm tra role có hợp lệ không (chỉ chấp nhận 1 hoặc 2)
+    if (role !== "1" && role !== "2") {
+      return res.status(400).json(createResponse(400, 'Role không hợp lệ, chỉ chấp nhận 1 hoặc 2', null));
+    }
+
+    // Tìm user theo role và ẩn password
+    const users = await User.find({ role: Number(role) }, '-password');
+
+    return res.json(createResponse(200, null, users));
+  } catch (error) {
+    return res.status(500).json(createResponse(500, 'Lỗi server', error.message));
+  }
+};
