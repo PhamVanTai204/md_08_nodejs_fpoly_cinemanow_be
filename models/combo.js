@@ -6,6 +6,11 @@ const comboSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
+    user_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
     name_combo: {
         type: String,
         required: true
