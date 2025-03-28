@@ -9,6 +9,9 @@ router.get('/get-all', showTimeController.getAllShowTimes);
 // Lấy suất chiếu theo ID
 router.get('/get-by-id/:id', showTimeController.getShowTimeById);
 
+// API Mobile - Lấy suất chiếu theo ID phim
+router.get('/mobile/get-by-movie/:movie_id', showTimeController.getShowTimesByMovieId);
+
 // Tạo suất chiếu mới
 router.post('/create', showTimeController.createShowTime);
 
