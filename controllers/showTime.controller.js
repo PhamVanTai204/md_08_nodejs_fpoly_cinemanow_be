@@ -84,12 +84,26 @@ exports.createShowTime = async (req, res) => {
             return res.status(400).json(createResponse(400, 'Mã suất chiếu đã tồn tại', null));
         }
 
-        // Kiểm tra movie tồn tại
+        // Chuyển đổi định dạng ngày DD/MM/YYYY thành YYYY-MM-DD
+        let formattedDate;
+        try {
+            const [day, month, year] = show_date.split('/');
+            formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            
+            // Kiểm tra ngày hợp lệ
+            if (!isValidDate(formattedDate)) {
+                return res.status(400).json(createResponse(400, 'Ngày tháng không hợp lệ', null));
+            }
+        } catch (error) {
+            return res.status(400).json(createResponse(400, 'Định dạng ngày tháng không hợp lệ. Vui lòng sử dụng định dạng DD/MM/YYYY', null));
+        }
+
+        // Kiểm tra movie_id hợp lệ
         if (!mongoose.Types.ObjectId.isValid(movie_id)) {
             return res.status(400).json(createResponse(400, 'ID phim không hợp lệ', null));
         }
 
-        // Kiểm tra room tồn tại
+        // Kiểm tra room_id hợp lệ
         if (!mongoose.Types.ObjectId.isValid(room_id)) {
             return res.status(400).json(createResponse(400, 'ID phòng chiếu không hợp lệ', null));
         }
@@ -100,7 +114,7 @@ exports.createShowTime = async (req, res) => {
             room_id,
             start_time,
             end_time,
-            show_date
+            show_date: formattedDate // Sử dụng ngày đã được format
         });
 
         const savedShowTime = await newShowTime.save();
@@ -114,6 +128,12 @@ exports.createShowTime = async (req, res) => {
         res.status(500).json(createResponse(500, 'Lỗi khi tạo suất chiếu', null));
     }
 };
+
+// Hàm kiểm tra ngày hợp lệ
+function isValidDate(dateString) {
+    const date = new Date(dateString);
+    return date instanceof Date && !isNaN(date);
+}
 
 // Cập nhật suất chiếu
 exports.updateShowTime = async (req, res) => {
