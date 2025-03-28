@@ -10,20 +10,7 @@ exports.getAllTickets = async (req, res) => {
     try {
         const tickets = await Ticket.find()
             .populate('user_id')
-            .populate({
-                path: 'showtime_id',
-                populate: [
-                    {
-                        path: 'movie_id'
-                    },
-                    {
-                        path: 'room_id',
-                        populate: {
-                            path: 'cinema_id'
-                        }
-                    }
-                ]
-            })
+            .populate('showtime_id')
             .populate('voucher_id');
         res.json(createResponse(200, null, tickets));
     } catch (error) {
@@ -44,20 +31,7 @@ exports.getTicketById = async (req, res) => {
 
         const ticket = await Ticket.findById(id)
             .populate('user_id')
-            .populate({
-                path: 'showtime_id',
-                populate: [
-                    {
-                        path: 'movie_id'
-                    },
-                    {
-                        path: 'room_id',
-                        populate: {
-                            path: 'cinema_id'
-                        }
-                    }
-                ]
-            })
+            .populate('showtime_id')
             .populate('voucher_id');
 
         if (!ticket) {
@@ -74,11 +48,11 @@ exports.getTicketById = async (req, res) => {
 // Tạo ticket mới
 exports.createTicket = async (req, res) => {
     try {
-        const { ticket_id, user_id, showtime_id, voucher_id, status } = req.body;
+        const { ticket_id, user_id, showtime_id, voucher_id, total_amount } = req.body;
 
-        // Kiểm tra đầy đủ thông tin bắt buộc
-        if (!ticket_id || !user_id || !showtime_id) {
-            return res.status(400).json(createResponse(400, 'Vui lòng cung cấp đầy đủ thông tin bắt buộc', null));
+        // Kiểm tra đầy đủ thông tin
+        if (!ticket_id || !user_id || !showtime_id || !total_amount) {
+            return res.status(400).json(createResponse(400, 'Vui lòng cung cấp đầy đủ thông tin', null));
         }
 
         // Kiểm tra ticket_id đã tồn tại
@@ -105,50 +79,23 @@ exports.createTicket = async (req, res) => {
             return res.status(404).json(createResponse(404, 'Không tìm thấy suất chiếu', null));
         }
 
-        // Kiểm tra voucher nếu có
-        if (voucher_id) {
-            if (!mongoose.Types.ObjectId.isValid(voucher_id)) {
-                return res.status(400).json(createResponse(400, 'ID voucher không hợp lệ', null));
-            }
-            const voucher = await Voucher.findById(voucher_id);
-            if (!voucher) {
-                return res.status(404).json(createResponse(404, 'Không tìm thấy voucher', null));
-            }
-        }
-
-        // Kiểm tra status hợp lệ
-        const validStatuses = ['pending', 'confirmed', 'cancelled'];
-        if (status && !validStatuses.includes(status)) {
-            return res.status(400).json(createResponse(400, 'Trạng thái vé không hợp lệ', null));
+        // Kiểm tra voucher tồn tại nếu có
+        if (voucher_id && !mongoose.Types.ObjectId.isValid(voucher_id)) {
+            return res.status(400).json(createResponse(400, 'ID voucher không hợp lệ', null));
         }
 
         const newTicket = new Ticket({
             ticket_id,
             user_id,
             showtime_id,
-            voucher_id: voucher_id || null,
-            status: status || 'pending'
+            voucher_id,
+            total_amount
         });
 
         const savedTicket = await newTicket.save();
-
-        // Populate thông tin liên quan
         const populatedTicket = await Ticket.findById(savedTicket._id)
             .populate('user_id')
-            .populate({
-                path: 'showtime_id',
-                populate: [
-                    {
-                        path: 'movie_id'
-                    },
-                    {
-                        path: 'room_id',
-                        populate: {
-                            path: 'cinema_id'
-                        }
-                    }
-                ]
-            })
+            .populate('showtime_id')
             .populate('voucher_id');
 
         res.status(201).json(createResponse(201, 'Tạo vé thành công', populatedTicket));
@@ -161,7 +108,7 @@ exports.createTicket = async (req, res) => {
 // Cập nhật ticket
 exports.updateTicket = async (req, res) => {
     try {
-        const { voucher_id, status } = req.body;
+        const { voucher_id, total_amount, status } = req.body;
         const id = req.params.id;
 
         // Kiểm tra ID hợp lệ
@@ -180,11 +127,11 @@ exports.updateTicket = async (req, res) => {
             if (!mongoose.Types.ObjectId.isValid(voucher_id)) {
                 return res.status(400).json(createResponse(400, 'ID voucher không hợp lệ', null));
             }
-            const voucher = await Voucher.findById(voucher_id);
-            if (!voucher) {
-                return res.status(404).json(createResponse(404, 'Không tìm thấy voucher', null));
-            }
             ticket.voucher_id = voucher_id;
+        }
+
+        if (total_amount !== undefined) {
+            ticket.total_amount = total_amount;
         }
 
         // Kiểm tra status nếu có cập nhật
@@ -201,20 +148,7 @@ exports.updateTicket = async (req, res) => {
         // Populate thông tin liên quan
         const populatedTicket = await Ticket.findById(updatedTicket._id)
             .populate('user_id')
-            .populate({
-                path: 'showtime_id',
-                populate: [
-                    {
-                        path: 'movie_id'
-                    },
-                    {
-                        path: 'room_id',
-                        populate: {
-                            path: 'cinema_id'
-                        }
-                    }
-                ]
-            })
+            .populate('showtime_id')
             .populate('voucher_id');
 
         res.json(createResponse(200, 'Cập nhật vé thành công', populatedTicket));
