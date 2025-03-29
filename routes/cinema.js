@@ -8,6 +8,12 @@ router.get('/getcinema', cinemaController.getCinema);
 // Lấy rạp phim theo ID
 router.get('/getcinemaById/:id', cinemaController.getCinemaId);
 
+// Lấy rạp theo phim
+router.get('/get-by-movie/:movie_id', cinemaController.getCinemasByMovie);
+
+// Lấy suất chiếu theo rạp
+router.get('/showtimes/:cinema_id', cinemaController.getShowtimesByCinema);
+
 // Thêm rạp phim
 router.post('/addcinema', cinemaController.addCinema);
 

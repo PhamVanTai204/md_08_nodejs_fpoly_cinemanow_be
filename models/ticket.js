@@ -16,24 +16,6 @@ const ticketSchema = new mongoose.Schema({
         ref: 'ShowTime',
         required: true
     },
-    seats: [{
-        seat_id: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Seat',
-            required: true
-        }
-    }],
-    combos: [{
-        combo_id: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Combo'
-        },
-        quantity: {
-            type: Number,
-            required: true,
-            min: 1
-        }
-    }],
     voucher_id: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Voucher',
@@ -46,8 +28,8 @@ const ticketSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['unpaid', 'pending', 'confirmed', 'cancelled'],
-        default: 'unpaid'
+        enum: ['pending', 'confirmed', 'cancelled'],
+        default: 'pending'
     }
 }, {
     timestamps: true

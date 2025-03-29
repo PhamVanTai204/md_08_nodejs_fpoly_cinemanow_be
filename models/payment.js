@@ -11,11 +11,6 @@ const paymentSchema = new mongoose.Schema({
         ref: 'Ticket',
         required: true
     },
-    user_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
-    },
     payment_method_id: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'PaymentMethod',
@@ -25,11 +20,6 @@ const paymentSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'PaymentStatus',
         required: true
-    },
-    amount: {
-        type: Number,
-        required: true,
-        min: 0
     },
     payment_time: {
         type: Date,
