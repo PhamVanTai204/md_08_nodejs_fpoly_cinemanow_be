@@ -200,4 +200,53 @@ exports.deletePayment = async (req, res) => {
         console.error('Delete payment error:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi xóa thanh toán', null));
     }
+};
+
+// Xác nhận thanh toán thành công
+exports.confirmPayment = async (req, res) => {
+    try {
+        const { ticket_id } = req.body;
+
+        // Kiểm tra ticket tồn tại
+        const ticket = await Ticket.findOne({ ticket_id });
+        if (!ticket) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy vé', null));
+        }
+
+        // Kiểm tra trạng thái vé
+        if (ticket.status !== 'pending') {
+            return res.status(400).json(createResponse(400, 'Vé không ở trạng thái chờ thanh toán', null));
+        }
+
+        // Cập nhật trạng thái vé thành confirmed
+        ticket.status = 'confirmed';
+        await ticket.save();
+
+        // Tạo payment record
+        const payment = new Payment({
+            payment_id: 'PAY' + Date.now(),
+            ticket_id: ticket._id,
+            user_id: ticket.user_id,
+            amount: ticket.total_amount,
+            payment_method: req.body.payment_method || 'VNPAY',
+            status: 'completed'
+        });
+        await payment.save();
+
+        // Trả về thông tin đã cập nhật
+        const updatedTicket = await Ticket.findById(ticket._id)
+            .populate('user_id')
+            .populate('showtime_id')
+            .populate('seats.seat_id')
+            .populate('combos.combo_id')
+            .populate('voucher_id');
+
+        res.json(createResponse(200, 'Thanh toán thành công', {
+            ticket: updatedTicket,
+            payment: payment
+        }));
+    } catch (error) {
+        console.error('Confirm payment error:', error);
+        res.status(500).json(createResponse(500, 'Lỗi khi xác nhận thanh toán', null));
+    }
 }; 

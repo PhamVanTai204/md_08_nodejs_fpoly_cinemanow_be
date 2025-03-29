@@ -17,4 +17,7 @@ router.put('/update/:id', paymentController.updatePayment);
 // Xóa thanh toán
 router.delete('/delete/:id', paymentController.deletePayment);
 
+// Xác nhận thanh toán thành công
+router.post('/confirm', paymentController.confirmPayment);
+
 module.exports = router; 
