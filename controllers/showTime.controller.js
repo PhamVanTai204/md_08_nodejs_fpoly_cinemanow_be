@@ -71,10 +71,10 @@ exports.getShowTimesByMovieId = async (req, res) => {
 // Tạo suất chiếu mới
 exports.createShowTime = async (req, res) => {
     try {
-        const { showtime_id, movie_id, room_id, start_time, end_time, show_date } = req.body;
+        const { showtime_id, movie_id, room_id, cinema_id, start_time, end_time, show_date } = req.body;
 
         // Kiểm tra đầy đủ thông tin
-        if (!showtime_id || !movie_id || !room_id || !start_time || !end_time || !show_date) {
+        if (!showtime_id || !movie_id || !room_id || !cinema_id || !start_time || !end_time || !show_date) {
             return res.status(400).json(createResponse(400, 'Vui lòng cung cấp đầy đủ thông tin', null));
         }
 
@@ -108,19 +108,26 @@ exports.createShowTime = async (req, res) => {
             return res.status(400).json(createResponse(400, 'ID phòng chiếu không hợp lệ', null));
         }
 
+        // Kiểm tra cinema_id hợp lệ
+        if (!mongoose.Types.ObjectId.isValid(cinema_id)) {
+            return res.status(400).json(createResponse(400, 'ID rạp không hợp lệ', null));
+        }
+
         const newShowTime = new ShowTime({
             showtime_id,
             movie_id,
             room_id,
+            cinema_id,
             start_time,
             end_time,
-            show_date: formattedDate // Sử dụng ngày đã được format
+            show_date: formattedDate
         });
 
         const savedShowTime = await newShowTime.save();
         const populatedShowTime = await ShowTime.findById(savedShowTime._id)
             .populate('movie_id')
-            .populate('room_id');
+            .populate('room_id')
+            .populate('cinema_id');
 
         res.status(201).json(createResponse(201, 'Tạo suất chiếu thành công', populatedShowTime));
     } catch (error) {

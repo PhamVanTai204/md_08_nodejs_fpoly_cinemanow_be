@@ -3,7 +3,8 @@ const mongoose = require('mongoose');
 const showTimeSchema = new mongoose.Schema({
     showtime_id: {
         type: String,
-        required: true
+        required: true,
+        unique: true
     },
     movie_id: {
         type: mongoose.Schema.Types.ObjectId,
@@ -13,6 +14,11 @@ const showTimeSchema = new mongoose.Schema({
     room_id: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Room',
+        required: true
+    },
+    cinema_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Cinema',
         required: true
     },
     start_time: {
