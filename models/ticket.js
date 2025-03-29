@@ -16,6 +16,18 @@ const ticketSchema = new mongoose.Schema({
         ref: 'ShowTime',
         required: true
     },
+    seats: [{
+        seat_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Seat',
+            required: true
+        }
+    }],
+    combo_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Combo',
+        default: null
+    },
     voucher_id: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Voucher',

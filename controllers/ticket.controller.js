@@ -5,12 +5,14 @@ const Voucher = require('../models/voucher');
 const createResponse = require('../utils/responseHelper');
 const mongoose = require('mongoose');
 
-// Lấy tất cả ticket
+// Lấy tất cả vé
 exports.getAllTickets = async (req, res) => {
     try {
         const tickets = await Ticket.find()
             .populate('user_id')
             .populate('showtime_id')
+            .populate('seats.seat_id')
+            .populate('combo_id')
             .populate('voucher_id');
         res.json(createResponse(200, null, tickets));
     } catch (error) {
@@ -19,12 +21,11 @@ exports.getAllTickets = async (req, res) => {
     }
 };
 
-// Lấy ticket theo ID
+// Lấy vé theo ID
 exports.getTicketById = async (req, res) => {
     try {
         const id = req.params.id;
 
-        // Kiểm tra ID hợp lệ
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json(createResponse(400, 'ID vé không hợp lệ', null));
         }
@@ -32,6 +33,8 @@ exports.getTicketById = async (req, res) => {
         const ticket = await Ticket.findById(id)
             .populate('user_id')
             .populate('showtime_id')
+            .populate('seats.seat_id')
+            .populate('combo_id')
             .populate('voucher_id');
 
         if (!ticket) {
@@ -45,13 +48,13 @@ exports.getTicketById = async (req, res) => {
     }
 };
 
-// Tạo ticket mới
+// Tạo vé mới
 exports.createTicket = async (req, res) => {
     try {
-        const { ticket_id, user_id, showtime_id, voucher_id, total_amount } = req.body;
+        const { ticket_id, user_id, showtime_id, seats, combo_id, voucher_id, total_amount } = req.body;
 
         // Kiểm tra đầy đủ thông tin
-        if (!ticket_id || !user_id || !showtime_id || !total_amount) {
+        if (!ticket_id || !user_id || !showtime_id || !seats || !total_amount) {
             return res.status(400).json(createResponse(400, 'Vui lòng cung cấp đầy đủ thông tin', null));
         }
 
@@ -65,18 +68,15 @@ exports.createTicket = async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(user_id)) {
             return res.status(400).json(createResponse(400, 'ID người dùng không hợp lệ', null));
         }
-        const user = await User.findById(user_id);
-        if (!user) {
-            return res.status(404).json(createResponse(404, 'Không tìm thấy người dùng', null));
-        }
 
         // Kiểm tra showtime tồn tại
         if (!mongoose.Types.ObjectId.isValid(showtime_id)) {
             return res.status(400).json(createResponse(400, 'ID suất chiếu không hợp lệ', null));
         }
-        const showtime = await ShowTime.findById(showtime_id);
-        if (!showtime) {
-            return res.status(404).json(createResponse(404, 'Không tìm thấy suất chiếu', null));
+
+        // Kiểm tra combo tồn tại nếu có
+        if (combo_id && !mongoose.Types.ObjectId.isValid(combo_id)) {
+            return res.status(400).json(createResponse(400, 'ID combo không hợp lệ', null));
         }
 
         // Kiểm tra voucher tồn tại nếu có
@@ -88,6 +88,8 @@ exports.createTicket = async (req, res) => {
             ticket_id,
             user_id,
             showtime_id,
+            seats,
+            combo_id,
             voucher_id,
             total_amount
         });
@@ -96,6 +98,8 @@ exports.createTicket = async (req, res) => {
         const populatedTicket = await Ticket.findById(savedTicket._id)
             .populate('user_id')
             .populate('showtime_id')
+            .populate('seats.seat_id')
+            .populate('combo_id')
             .populate('voucher_id');
 
         res.status(201).json(createResponse(201, 'Tạo vé thành công', populatedTicket));
@@ -105,24 +109,28 @@ exports.createTicket = async (req, res) => {
     }
 };
 
-// Cập nhật ticket
+// Cập nhật vé
 exports.updateTicket = async (req, res) => {
     try {
-        const { voucher_id, total_amount, status } = req.body;
+        const { combo_id, voucher_id, total_amount, status } = req.body;
         const id = req.params.id;
 
-        // Kiểm tra ID hợp lệ
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json(createResponse(400, 'ID vé không hợp lệ', null));
         }
 
-        // Kiểm tra ticket tồn tại
         const ticket = await Ticket.findById(id);
         if (!ticket) {
             return res.status(404).json(createResponse(404, 'Không tìm thấy vé', null));
         }
 
-        // Kiểm tra voucher nếu có cập nhật
+        if (combo_id) {
+            if (!mongoose.Types.ObjectId.isValid(combo_id)) {
+                return res.status(400).json(createResponse(400, 'ID combo không hợp lệ', null));
+            }
+            ticket.combo_id = combo_id;
+        }
+
         if (voucher_id) {
             if (!mongoose.Types.ObjectId.isValid(voucher_id)) {
                 return res.status(400).json(createResponse(400, 'ID voucher không hợp lệ', null));
@@ -134,21 +142,16 @@ exports.updateTicket = async (req, res) => {
             ticket.total_amount = total_amount;
         }
 
-        // Kiểm tra status nếu có cập nhật
         if (status) {
-            const validStatuses = ['pending', 'confirmed', 'cancelled'];
-            if (!validStatuses.includes(status)) {
-                return res.status(400).json(createResponse(400, 'Trạng thái vé không hợp lệ', null));
-            }
             ticket.status = status;
         }
 
         const updatedTicket = await ticket.save();
-
-        // Populate thông tin liên quan
         const populatedTicket = await Ticket.findById(updatedTicket._id)
             .populate('user_id')
             .populate('showtime_id')
+            .populate('seats.seat_id')
+            .populate('combo_id')
             .populate('voucher_id');
 
         res.json(createResponse(200, 'Cập nhật vé thành công', populatedTicket));
@@ -158,12 +161,11 @@ exports.updateTicket = async (req, res) => {
     }
 };
 
-// Xóa ticket
+// Xóa vé
 exports.deleteTicket = async (req, res) => {
     try {
         const id = req.params.id;
 
-        // Kiểm tra ID hợp lệ
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json(createResponse(400, 'ID vé không hợp lệ', null));
         }
