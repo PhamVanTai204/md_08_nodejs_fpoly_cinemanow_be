@@ -46,8 +46,8 @@ const ticketSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['pending', 'confirmed', 'cancelled'],
-        default: 'pending'
+        enum: ['unpaid', 'pending', 'confirmed', 'cancelled'],
+        default: 'unpaid'
     }
 }, {
     timestamps: true
