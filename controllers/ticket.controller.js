@@ -12,7 +12,7 @@ exports.getAllTickets = async (req, res) => {
             .populate('user_id')
             .populate('showtime_id')
             .populate('seats.seat_id')
-            .populate('combo_id')
+            .populate('combos.combo_id')
             .populate('voucher_id');
         res.json(createResponse(200, null, tickets));
     } catch (error) {
@@ -34,7 +34,7 @@ exports.getTicketById = async (req, res) => {
             .populate('user_id')
             .populate('showtime_id')
             .populate('seats.seat_id')
-            .populate('combo_id')
+            .populate('combos.combo_id')
             .populate('voucher_id');
 
         if (!ticket) {
@@ -51,7 +51,7 @@ exports.getTicketById = async (req, res) => {
 // Tạo vé mới
 exports.createTicket = async (req, res) => {
     try {
-        const { ticket_id, user_id, showtime_id, seats, combo_id, voucher_id, total_amount } = req.body;
+        const { ticket_id, user_id, showtime_id, seats, combos, voucher_id, total_amount } = req.body;
 
         // Kiểm tra đầy đủ thông tin
         if (!ticket_id || !user_id || !showtime_id || !seats || !total_amount) {
@@ -75,8 +75,15 @@ exports.createTicket = async (req, res) => {
         }
 
         // Kiểm tra combo tồn tại nếu có
-        if (combo_id && !mongoose.Types.ObjectId.isValid(combo_id)) {
-            return res.status(400).json(createResponse(400, 'ID combo không hợp lệ', null));
+        if (combos && combos.length > 0) {
+            for (const combo of combos) {
+                if (!mongoose.Types.ObjectId.isValid(combo.combo_id)) {
+                    return res.status(400).json(createResponse(400, 'ID combo không hợp lệ', null));
+                }
+                if (!combo.quantity || combo.quantity < 1) {
+                    return res.status(400).json(createResponse(400, 'Số lượng combo phải lớn hơn 0', null));
+                }
+            }
         }
 
         // Kiểm tra voucher tồn tại nếu có
@@ -89,7 +96,7 @@ exports.createTicket = async (req, res) => {
             user_id,
             showtime_id,
             seats,
-            combo_id,
+            combos: combos || [],
             voucher_id,
             total_amount
         });
@@ -99,7 +106,7 @@ exports.createTicket = async (req, res) => {
             .populate('user_id')
             .populate('showtime_id')
             .populate('seats.seat_id')
-            .populate('combo_id')
+            .populate('combos.combo_id')
             .populate('voucher_id');
 
         res.status(201).json(createResponse(201, 'Tạo vé thành công', populatedTicket));
@@ -112,7 +119,7 @@ exports.createTicket = async (req, res) => {
 // Cập nhật vé
 exports.updateTicket = async (req, res) => {
     try {
-        const { combo_id, voucher_id, total_amount, status } = req.body;
+        const { combos, voucher_id, total_amount, status } = req.body;
         const id = req.params.id;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -124,11 +131,17 @@ exports.updateTicket = async (req, res) => {
             return res.status(404).json(createResponse(404, 'Không tìm thấy vé', null));
         }
 
-        if (combo_id) {
-            if (!mongoose.Types.ObjectId.isValid(combo_id)) {
-                return res.status(400).json(createResponse(400, 'ID combo không hợp lệ', null));
+        if (combos) {
+            // Kiểm tra combo hợp lệ
+            for (const combo of combos) {
+                if (!mongoose.Types.ObjectId.isValid(combo.combo_id)) {
+                    return res.status(400).json(createResponse(400, 'ID combo không hợp lệ', null));
+                }
+                if (!combo.quantity || combo.quantity < 1) {
+                    return res.status(400).json(createResponse(400, 'Số lượng combo phải lớn hơn 0', null));
+                }
             }
-            ticket.combo_id = combo_id;
+            ticket.combos = combos;
         }
 
         if (voucher_id) {
@@ -151,7 +164,7 @@ exports.updateTicket = async (req, res) => {
             .populate('user_id')
             .populate('showtime_id')
             .populate('seats.seat_id')
-            .populate('combo_id')
+            .populate('combos.combo_id')
             .populate('voucher_id');
 
         res.json(createResponse(200, 'Cập nhật vé thành công', populatedTicket));

@@ -23,11 +23,17 @@ const ticketSchema = new mongoose.Schema({
             required: true
         }
     }],
-    combo_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Combo',
-        default: null
-    },
+    combos: [{
+        combo_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Combo'
+        },
+        quantity: {
+            type: Number,
+            required: true,
+            min: 1
+        }
+    }],
     voucher_id: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Voucher',
