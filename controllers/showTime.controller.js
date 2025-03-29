@@ -55,6 +55,7 @@ exports.getShowTimesByMovieId = async (req, res) => {
         const showTimes = await ShowTime.find({ movie_id })
             .populate('movie_id')
             .populate('room_id')
+            .populate('cinema_id')
             .sort({ start_time: 1 }); // Sắp xếp theo thời gian bắt đầu
 
         if (!showTimes.length) {
