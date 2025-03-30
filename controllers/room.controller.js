@@ -210,7 +210,7 @@ exports.deleteRoom = async (req, res) => {
 exports.getRoomsByCinema = async (req, res) => {
     try {
         const { cinemaId } = req.params;
-        
+
         // Kiểm tra cinema tồn tại
         const cinema = await Cinema.findById(cinemaId);
         if (!cinema) {
@@ -233,10 +233,10 @@ const updateRoomTotalSeats = async (roomId) => {
     try {
         // Đếm số lượng ghế trong phòng
         const seatCount = await Seat.countDocuments({ room_id: roomId });
-        
+
         // Cập nhật total_seat của phòng
         await Room.findByIdAndUpdate(roomId, { total_seat: seatCount });
-        
+
         return seatCount;
     } catch (error) {
         console.error('Update room total seats error:', error);

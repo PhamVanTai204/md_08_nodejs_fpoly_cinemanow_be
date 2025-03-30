@@ -12,9 +12,13 @@ router.get('/get-by-id/:id', seatController.getSeatById);
 router.post('/create', seatController.createSeat);
 
 // Cập nhật ghế
-router.put('/update/:id', seatController.updateSeat);
+router.put('/update/:id', seatController.updateSeatStatus);
 
 // Xóa ghế
 router.delete('/delete/:id', seatController.deleteSeat);
+router.delete('/deletemuti', seatController.deleteMultipleSeats);
+
+router.post('/addmuti', seatController.addMultipleSeats);
+router.put('/updatemuti', seatController.updateMultipleSeatsStatus);
 
 module.exports = router; 

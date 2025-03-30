@@ -174,7 +174,7 @@ exports.getCinemasByMovie = async (req, res) => {
                         cinema_name: cinema.cinema_name,
                         location: cinema.location,
                         showtimes: showtimes
-                            .filter(st => st.cinema_id && 
+                            .filter(st => st.cinema_id &&
                                 st.cinema_id._id.toString() === cinema._id.toString())
                             .map(st => ({
                                 showtime_id: st.showtime_id,
@@ -375,6 +375,7 @@ exports.getSeatsByRoom = async (req, res) => {
 
         // Chuyển đổi dữ liệu thành mảng và sắp xếp theo hàng và cột
         const formattedSeats = seats.map(seat => ({
+            _id: seat._id,
             seat_id: seat.seat_id,
             seat_type: seat.seat_type,
             seat_status: seat.seat_status,
