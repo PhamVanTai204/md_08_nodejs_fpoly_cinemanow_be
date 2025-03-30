@@ -16,5 +16,6 @@ router.put('/update/:id', seatController.updateSeat);
 
 // Xóa ghế
 router.delete('/delete/:id', seatController.deleteSeat);
+router.post('/addmuti', seatController.addMultipleSeats);
 
 module.exports = router; 
