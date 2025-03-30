@@ -1,6 +1,7 @@
 const Payment = require('../models/payment');
 const Ticket = require('../models/ticket');
 const PaymentStatus = require('../models/paymentStatus');
+const PaymentMethod = require('../models/paymentMethod');
 const createResponse = require('../utils/responseHelper');
 const mongoose = require('mongoose');
 
@@ -152,12 +153,17 @@ exports.deletePayment = async (req, res) => {
     }
 };
 
-// Xác nhận thanh toán thành công
+// Xác nhận thanh toán
 exports.confirmPayment = async (req, res) => {
     try {
         const { ticket_id, payment_method_id } = req.body;
 
-        // Kiểm tra ticket tồn tại
+        // Kiểm tra dữ liệu đầu vào
+        if (!ticket_id || !payment_method_id) {
+            return res.status(400).json(createResponse(400, 'Thiếu thông tin thanh toán', null));
+        }
+
+        // Kiểm tra vé tồn tại
         const ticket = await Ticket.findOne({ ticket_id });
         if (!ticket) {
             return res.status(404).json(createResponse(404, 'Không tìm thấy vé', null));
@@ -172,48 +178,37 @@ exports.confirmPayment = async (req, res) => {
             return res.status(400).json(createResponse(400, 'Vé đã bị hủy', null));
         }
 
-        // Kiểm tra payment_method_id hợp lệ
-        if (!mongoose.Types.ObjectId.isValid(payment_method_id)) {
-            return res.status(400).json(createResponse(400, 'ID phương thức thanh toán không hợp lệ', null));
+        // Kiểm tra phương thức thanh toán tồn tại
+        const paymentMethod = await PaymentMethod.findById(payment_method_id);
+        if (!paymentMethod) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy phương thức thanh toán', null));
         }
 
-        // Lấy payment_status_id cho trạng thái completed
-        const completedStatus = await PaymentStatus.findOne({ name: 'completed' });
-        if (!completedStatus) {
-            return res.status(500).json(createResponse(500, 'Không tìm thấy trạng thái thanh toán', null));
-        }
+        // Tạo mã thanh toán
+        const payment_id = 'PAY' + Date.now();
+
+        // Tạo thanh toán mới
+        const newPayment = new Payment({
+            payment_id,
+            ticket_id: ticket._id,
+            payment_method_id,
+            payment_time: new Date(),
+            status_order: 'completed'
+        });
+
+        // Lưu thanh toán
+        await newPayment.save();
 
         // Cập nhật trạng thái vé thành confirmed
         ticket.status = 'confirmed';
         await ticket.save();
 
-        // Tạo payment record
-        const payment = new Payment({
-            payment_id: 'PAY' + Date.now(),
-            ticket_id: ticket._id,
-            user_id: ticket.user_id,
-            payment_method_id,
-            payment_status_id: completedStatus._id,
-            amount: ticket.total_amount
-        });
-        await payment.save();
+        // Populate thông tin thanh toán
+        const populatedPayment = await Payment.findById(newPayment._id)
+            .populate('ticket_id')
+            .populate('payment_method_id');
 
-        // Trả về thông tin đã cập nhật
-        const updatedTicket = await Ticket.findById(ticket._id)
-            .populate('user_id')
-            .populate('showtime_id')
-            .populate('seats.seat_id')
-            .populate('combos.combo_id')
-            .populate('voucher_id');
-
-        const populatedPayment = await Payment.findById(payment._id)
-            .populate('payment_method_id')
-            .populate('payment_status_id');
-
-        res.json(createResponse(200, 'Thanh toán thành công', {
-            ticket: updatedTicket,
-            payment: populatedPayment
-        }));
+        res.json(createResponse(200, 'Xác nhận thanh toán thành công', populatedPayment));
     } catch (error) {
         console.error('Confirm payment error:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi xác nhận thanh toán', null));
