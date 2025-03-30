@@ -14,6 +14,9 @@ router.get('/get-by-movie/:movie_id', cinemaController.getCinemasByMovie);
 // Lấy suất chiếu theo rạp
 router.get('/showtimes/:cinema_id', cinemaController.getShowtimesByCinema);
 
+// Lấy thông tin phòng chiếu theo ID suất chiếu
+router.get('/showtime/room/:showtime_id', cinemaController.getRoomByShowtime);
+
 // Thêm rạp phim
 router.post('/addcinema', cinemaController.addCinema);
 

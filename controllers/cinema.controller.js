@@ -282,3 +282,73 @@ exports.getShowtimesByCinema = async (req, res) => {
         res.status(500).json(createResponse(500, 'Lỗi khi lấy thông tin suất chiếu', null));
     }
 };
+
+// Lấy thông tin phòng chiếu theo ID suất chiếu
+exports.getRoomByShowtime = async (req, res) => {
+    try {
+        const { showtime_id } = req.params;
+
+        // Kiểm tra showtime_id hợp lệ
+        if (!showtime_id) {
+            return res.status(400).json(createResponse(400, 'ID suất chiếu không hợp lệ', null));
+        }
+
+        // Tìm suất chiếu bằng cả showtime_id hoặc _id
+        let showtime = null;
+        if (mongoose.Types.ObjectId.isValid(showtime_id)) {
+            showtime = await ShowTime.findOne({
+                $or: [
+                    { showtime_id: showtime_id },
+                    { _id: showtime_id }
+                ]
+            }).populate({
+                path: 'room_id',
+                select: 'room_name room_type capacity seats'
+            });
+        } else {
+            showtime = await ShowTime.findOne({ showtime_id: showtime_id })
+                .populate({
+                    path: 'room_id',
+                    select: 'room_name room_type capacity seats'
+                });
+        }
+
+        console.log('Showtime found:', showtime); // Log để debug
+
+        if (!showtime) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy suất chiếu', null));
+        }
+
+        if (!showtime.room_id) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy thông tin phòng chiếu', null));
+        }
+
+        const response = {
+            room_id: showtime.room_id._id,
+            room_name: showtime.room_id.room_name,
+            room_type: showtime.room_id.room_type || 'Unknown',
+            capacity: showtime.room_id.capacity || 0,
+            seats: []
+        };
+
+        // Chỉ xử lý seats nếu có dữ liệu
+        if (showtime.room_id.seats && Array.isArray(showtime.room_id.seats)) {
+            response.seats = showtime.room_id.seats.map(seat => ({
+                seat_id: seat._id,
+                seat_name: seat.seat_name,
+                row: seat.row,
+                column: seat.column
+            })).sort((a, b) => {
+                if (a.row !== b.row) {
+                    return a.row.localeCompare(b.row);
+                }
+                return a.column - b.column;
+            });
+        }
+
+        res.json(createResponse(200, null, response));
+    } catch (error) {
+        console.error('Get room by showtime error:', error);
+        res.status(500).json(createResponse(500, 'Lỗi khi lấy thông tin phòng chiếu', null));
+    }
+};
