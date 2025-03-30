@@ -1,6 +1,7 @@
 const Cinema = require('../models/cinema');
 const ShowTime = require('../models/showTime');
 const Film = require('../models/film');
+const Seat = require('../models/seat');
 const createResponse = require('../utils/responseHelper');
 const mongoose = require('mongoose');
 
@@ -350,5 +351,41 @@ exports.getRoomByShowtime = async (req, res) => {
     } catch (error) {
         console.error('Get room by showtime error:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi lấy thông tin phòng chiếu', null));
+    }
+};
+
+// Lấy danh sách ghế theo ID phòng
+exports.getSeatsByRoom = async (req, res) => {
+    try {
+        const { room_id } = req.params;
+
+        // Kiểm tra room_id hợp lệ
+        if (!mongoose.Types.ObjectId.isValid(room_id)) {
+            return res.status(400).json(createResponse(400, 'ID phòng không hợp lệ', null));
+        }
+
+        // Tìm tất cả ghế của phòng
+        const seats = await Seat.find({ room_id })
+            .select('seat_id seat_type seat_status price_seat row_of_seat column_of_seat')
+            .sort({ row_of_seat: 1, column_of_seat: 1 });
+
+        if (!seats || seats.length === 0) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy ghế nào trong phòng này', null));
+        }
+
+        // Chuyển đổi dữ liệu thành mảng và sắp xếp theo hàng và cột
+        const formattedSeats = seats.map(seat => ({
+            seat_id: seat.seat_id,
+            seat_type: seat.seat_type,
+            seat_status: seat.seat_status,
+            price: seat.price_seat,
+            row: seat.row_of_seat,
+            column: seat.column_of_seat
+        }));
+
+        res.json(createResponse(200, null, formattedSeats));
+    } catch (error) {
+        console.error('Get seats by room error:', error);
+        res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách ghế', null));
     }
 };

@@ -1,6 +1,7 @@
 const Seat = require('../models/seat');
 const Room = require('../models/room');
 const createResponse = require('../utils/responseHelper');
+const { updateRoomTotalSeats } = require('./room.controller');
 
 // Lấy tất cả ghế
 exports.getAllSeats = async (req, res) => {
@@ -86,6 +87,9 @@ exports.createSeat = async (req, res) => {
 
         const savedSeat = await newSeat.save();
         
+        // Cập nhật số lượng ghế của phòng
+        const totalSeats = await updateRoomTotalSeats(room_id);
+        
         // Populate thông tin liên quan
         const populatedSeat = await Seat.findById(savedSeat._id)
             .populate({
@@ -95,7 +99,10 @@ exports.createSeat = async (req, res) => {
                 }
             });
 
-        res.status(201).json(createResponse(201, 'Tạo ghế thành công', populatedSeat));
+        res.status(201).json(createResponse(201, 'Tạo ghế thành công', {
+            seat: populatedSeat,
+            room_total_seats: totalSeats
+        }));
     } catch (error) {
         console.error('Create seat error:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi tạo ghế', null));
@@ -145,8 +152,13 @@ exports.deleteSeat = async (req, res) => {
             return res.status(404).json(createResponse(404, 'Không tìm thấy ghế', null));
         }
 
+        const roomId = seat.room_id;
         await Seat.deleteOne({ _id: req.params.id });
-        res.json(createResponse(200, 'Xóa ghế thành công', null));
+
+        // Cập nhật số lượng ghế của phòng
+        const totalSeats = await updateRoomTotalSeats(roomId);
+
+        res.json(createResponse(200, 'Xóa ghế thành công', { room_total_seats: totalSeats }));
     } catch (error) {
         console.error('Delete seat error:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi xóa ghế', null));

@@ -29,4 +29,7 @@ router.delete('/deletecinema/:id', cinemaController.deleteCinema);
 // Tìm kiếm rạp phim theo tên hoặc địa điểm
 router.get('/search', cinemaController.searchCinema);
 
+// Lấy danh sách ghế theo ID phòng
+router.get('/rooms/seats/:room_id', cinemaController.getSeatsByRoom);
+
 module.exports = router;

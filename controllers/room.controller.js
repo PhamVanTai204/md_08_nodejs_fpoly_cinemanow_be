@@ -1,5 +1,6 @@
 const Room = require('../models/room');
 const Cinema = require('../models/cinema');
+const Seat = require('../models/seat');
 const createResponse = require('../utils/responseHelper');
 
 // Middleware kiểm tra ID hợp lệ
@@ -57,7 +58,7 @@ exports.getRoomId = async (req, res) => {
 // Thêm phòng mới
 exports.addRoom = async (req, res) => {
     try {
-        const { cinema_id, room_name, room_style, total_seat } = req.body;
+        const { cinema_id, room_name, room_style } = req.body;
 
         // Kiểm tra đầy đủ thông tin bắt buộc
         if (!cinema_id) {
@@ -68,9 +69,6 @@ exports.addRoom = async (req, res) => {
         }
         if (!room_style) {
             return res.status(400).json(createResponse(400, 'Thiếu loại phòng (room_style)', null));
-        }
-        if (!total_seat) {
-            return res.status(400).json(createResponse(400, 'Thiếu số lượng ghế (total_seat)', null));
         }
 
         // Kiểm tra rạp tồn tại
@@ -85,23 +83,18 @@ exports.addRoom = async (req, res) => {
             return res.status(400).json(createResponse(400, 'Loại phòng không hợp lệ. Chỉ chấp nhận: 2D, 3D, 4DX, IMAX', null));
         }
 
-        // Kiểm tra total_seat là số dương
-        if (total_seat <= 0) {
-            return res.status(400).json(createResponse(400, 'Số lượng ghế phải lớn hơn 0', null));
-        }
-
         // Kiểm tra tên phòng đã tồn tại trong rạp chưa
         const existingRoom = await Room.findOne({ cinema_id, room_name });
         if (existingRoom) {
             return res.status(400).json(createResponse(400, 'Tên phòng đã tồn tại trong rạp này', null));
         }
 
-        // Tạo phòng mới
+        // Tạo phòng mới với total_seat mặc định là 0
         const room = new Room({
             cinema_id,
             room_name,
             room_style,
-            total_seat,
+            total_seat: 0,
             status: 'active'
         });
 
@@ -234,3 +227,22 @@ exports.getRoomsByCinema = async (req, res) => {
         res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách phòng theo rạp', null));
     }
 };
+
+// Cập nhật số lượng ghế của phòng
+const updateRoomTotalSeats = async (roomId) => {
+    try {
+        // Đếm số lượng ghế trong phòng
+        const seatCount = await Seat.countDocuments({ room_id: roomId });
+        
+        // Cập nhật total_seat của phòng
+        await Room.findByIdAndUpdate(roomId, { total_seat: seatCount });
+        
+        return seatCount;
+    } catch (error) {
+        console.error('Update room total seats error:', error);
+        throw error;
+    }
+};
+
+// Export function để các controller khác có thể sử dụng
+exports.updateRoomTotalSeats = updateRoomTotalSeats;
