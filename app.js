@@ -26,6 +26,7 @@ var paymentRouter = require('./routes/payment'); // Import routes payment
 var paymentMethodRouter = require('./routes/paymentMethod'); // Import routes payment method
 var paymentStatusRouter = require('./routes/paymentStatus'); // Import routes payment status
 var reviewRouter = require('./routes/review'); // Import routes review
+var transactionRouter = require('./routes/transaction'); // Import routes transaction
 
 var bannerRouter = require('./routes/banner'); // Import routes banner
 
@@ -57,6 +58,7 @@ app.use('/payments', paymentRouter); // Định nghĩa tiền tố URL cho payme
 app.use('/payment-methods', paymentMethodRouter); // Định nghĩa tiền tố URL cho payment method
 app.use('/payment-statuses', paymentStatusRouter); // Định nghĩa tiền tố URL cho payment status
 app.use('/reviews', reviewRouter); // Định nghĩa tiền tố URL cho review
+app.use('/transactions', transactionRouter); // Định nghĩa tiền tố URL cho transaction
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

@@ -169,15 +169,6 @@ exports.confirmPayment = async (req, res) => {
             return res.status(404).json(createResponse(404, 'Không tìm thấy vé', null));
         }
 
-        // Kiểm tra trạng thái vé
-        if (ticket.status === 'confirmed') {
-            return res.status(400).json(createResponse(400, 'Vé đã được thanh toán trước đó', null));
-        }
-
-        if (ticket.status === 'cancelled') {
-            return res.status(400).json(createResponse(400, 'Vé đã bị hủy', null));
-        }
-
         // Kiểm tra phương thức thanh toán tồn tại
         const paymentMethod = await PaymentMethod.findById(payment_method_id);
         if (!paymentMethod) {
@@ -192,6 +183,7 @@ exports.confirmPayment = async (req, res) => {
             payment_id,
             ticket_id: ticket._id,
             payment_method_id,
+            payment_status_id: mongoose.Types.ObjectId(), // ID trạng thái thanh toán
             payment_time: new Date(),
             status_order: 'completed'
         });

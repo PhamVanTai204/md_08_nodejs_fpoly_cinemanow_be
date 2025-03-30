@@ -16,6 +16,11 @@ const paymentSchema = new mongoose.Schema({
         ref: 'PaymentMethod',
         required: true
     },
+    payment_status_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'PaymentStatus',
+        required: true
+    },
     payment_time: {
         type: Date,
         default: Date.now
