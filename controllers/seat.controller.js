@@ -207,3 +207,30 @@ exports.addMultipleSeats = async (req, res) => {
         res.status(500).json(createResponse(500, "Lỗi khi thêm ghế", error.message));
     }
 };
+exports.deleteMultipleSeats = async (req, res) => {
+    const { room_id, seat_ids } = req.body;
+
+    try {
+        if (!room_id && (!seat_ids || seat_ids.length === 0)) {
+            return res.status(400).json(createResponse(400, "Cần cung cấp room_id hoặc danh sách seat_ids", null));
+        }
+
+        let deleteResult;
+        if (room_id) {
+            // Xóa tất cả ghế trong một phòng
+            deleteResult = await Seat.deleteMany({ room_id });
+        } else if (seat_ids) {
+            // Xóa danh sách ghế theo seat_id
+            deleteResult = await Seat.deleteMany({ seat_id: { $in: seat_ids } });
+        }
+
+        if (deleteResult.deletedCount === 0) {
+            return res.status(404).json(createResponse(404, "Không tìm thấy ghế để xóa", null));
+        }
+
+        res.json(createResponse(200, `Xóa ${deleteResult.deletedCount} ghế thành công`, null));
+    } catch (error) {
+        console.error("Delete multiple seats error:", error);
+        res.status(500).json(createResponse(500, "Lỗi khi xóa ghế", error.message));
+    }
+};
