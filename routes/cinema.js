@@ -8,6 +8,15 @@ router.get('/getcinema', cinemaController.getCinema);
 // Lấy rạp phim theo ID
 router.get('/getcinemaById/:id', cinemaController.getCinemaId);
 
+// Lấy rạp theo phim
+router.get('/get-by-movie/:movie_id', cinemaController.getCinemasByMovie);
+
+// Lấy suất chiếu theo rạp
+router.get('/showtimes/:cinema_id', cinemaController.getShowtimesByCinema);
+
+// Lấy thông tin phòng chiếu theo ID suất chiếu
+router.get('/showtime/room/:showtime_id', cinemaController.getRoomByShowtime);
+
 // Thêm rạp phim
 router.post('/addcinema', cinemaController.addCinema);
 
@@ -19,5 +28,8 @@ router.delete('/deletecinema/:id', cinemaController.deleteCinema);
 
 // Tìm kiếm rạp phim theo tên hoặc địa điểm
 router.get('/search', cinemaController.searchCinema);
+
+// Lấy danh sách ghế theo ID phòng
+router.get('/rooms/seats/:room_id', cinemaController.getSeatsByRoom);
 
 module.exports = router;

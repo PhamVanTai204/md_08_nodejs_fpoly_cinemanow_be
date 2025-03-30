@@ -2,19 +2,23 @@ const express = require('express');
 const router = express.Router();
 const showTimeController = require('../controllers/showTime.controller');
 
-// Lấy danh sách suất chiếu
-router.get('/getAll', showTimeController.getShowTimes);
+// Public routes
+// Lấy tất cả suất chiếu
+router.get('/get-all', showTimeController.getAllShowTimes);
 
 // Lấy suất chiếu theo ID
-router.get('/getById/:id', showTimeController.getShowTimeById);
+router.get('/get-by-id/:id', showTimeController.getShowTimeById);
 
-// Thêm suất chiếu mới
-router.post('/addShowTime', showTimeController.addShowTime);
+// API Mobile - Lấy suất chiếu theo ID phim
+router.get('/mobile/get-by-movie/:movie_id', showTimeController.getShowTimesByMovieId);
 
-// Cập nhật suất chiếu theo ID
-router.put('/updateShowTime/:id', showTimeController.updateShowTime);
+// Tạo suất chiếu mới
+router.post('/create', showTimeController.createShowTime);
 
-// Xóa suất chiếu theo ID
-router.delete('/deleteShowTime/:id', showTimeController.deleteShowTime);
+// Cập nhật suất chiếu
+router.put('/update/:id', showTimeController.updateShowTime);
+
+// Xóa suất chiếu
+router.delete('/delete/:id', showTimeController.deleteShowTime);
 
 module.exports = router;

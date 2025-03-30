@@ -1,13 +1,24 @@
-const db = require('./db');
+const mongoose = require('mongoose');
 
-const showTimeSchema = db.mongoose.Schema({
-    movie_id: {
+const showTimeSchema = new mongoose.Schema({
+    showtime_id: {
         type: String,
-        ref: 'Film',  // Liên kết với bảng phim
+        required: true,
+        unique: true
+    },
+    movie_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Film',
         required: true
     },
-    showtime_status: {
-        type: Number,
+    room_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Room',
+        required: true
+    },
+    cinema_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Cinema',
         required: true
     },
     start_time: {
@@ -18,12 +29,12 @@ const showTimeSchema = db.mongoose.Schema({
         type: String,
         required: true
     },
-    price: {
-        type: Number,
+    show_date: {
+        type: Date,
         required: true
     }
+}, {
+    timestamps: true
 });
 
-const showTimeManagement = db.mongoose.model('ShowTimeManagement', showTimeSchema);
-
-module.exports = showTimeManagement;
+module.exports = mongoose.model('ShowTime', showTimeSchema);
