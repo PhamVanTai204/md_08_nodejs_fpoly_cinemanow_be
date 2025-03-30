@@ -110,10 +110,15 @@ exports.createSeat = async (req, res) => {
 };
 
 // Cập nhật ghế
-exports.updateSeat = async (req, res) => {
+exports.updateSeatStatus = async (req, res) => {
     try {
-        const { seat_status, seat_type, price_seat } = req.body;
+        const { seat_status } = req.body;
         const id = req.params.id;
+
+        // Kiểm tra xem trạng thái có hợp lệ không
+        if (!['available', 'booked', 'unavailable'].includes(seat_status)) {
+            return res.status(400).json(createResponse(400, "Trạng thái ghế không hợp lệ", null));
+        }
 
         // Kiểm tra ghế tồn tại
         const seat = await Seat.findById(id);
@@ -121,11 +126,8 @@ exports.updateSeat = async (req, res) => {
             return res.status(404).json(createResponse(404, 'Không tìm thấy ghế', null));
         }
 
-        // Cập nhật thông tin (chỉ cho phép cập nhật status, type và giá)
-        if (seat_status) seat.seat_status = seat_status;
-        if (seat_type) seat.seat_type = seat_type;
-        if (price_seat) seat.price_seat = price_seat;
-
+        // Cập nhật trạng thái ghế
+        seat.seat_status = seat_status;
         const updatedSeat = await seat.save();
 
         // Populate thông tin liên quan
@@ -137,12 +139,13 @@ exports.updateSeat = async (req, res) => {
                 }
             });
 
-        res.json(createResponse(200, 'Cập nhật ghế thành công', populatedSeat));
+        res.json(createResponse(200, 'Cập nhật trạng thái ghế thành công', populatedSeat));
     } catch (error) {
-        console.error('Update seat error:', error);
-        res.status(500).json(createResponse(500, 'Lỗi khi cập nhật ghế', null));
+        console.error('Update seat status error:', error);
+        res.status(500).json(createResponse(500, 'Lỗi khi cập nhật trạng thái ghế', null));
     }
 };
+
 
 // Xóa ghế
 exports.deleteSeat = async (req, res) => {
@@ -232,5 +235,36 @@ exports.deleteMultipleSeats = async (req, res) => {
     } catch (error) {
         console.error("Delete multiple seats error:", error);
         res.status(500).json(createResponse(500, "Lỗi khi xóa ghế", error.message));
+    }
+};
+exports.updateMultipleSeatsStatus = async (req, res) => {
+    const { seat_ids, room_id, seat_status } = req.body;
+
+    try {
+        if (!seat_status || (!seat_ids && !room_id)) {
+            return res.status(400).json(createResponse(400, "Cần cung cấp seat_status và seat_ids hoặc room_id", null));
+        }
+
+        if (!['available', 'booked', 'unavailable'].includes(seat_status)) {
+            return res.status(400).json(createResponse(400, "Trạng thái ghế không hợp lệ", null));
+        }
+
+        let updateResult;
+        if (room_id) {
+            // Cập nhật tất cả ghế trong một phòng
+            updateResult = await Seat.updateMany({ room_id }, { seat_status });
+        } else if (seat_ids) {
+            // Cập nhật trạng thái theo danh sách seat_id
+            updateResult = await Seat.updateMany({ seat_id: { $in: seat_ids } }, { seat_status });
+        }
+
+        if (updateResult.matchedCount === 0) {
+            return res.status(404).json(createResponse(404, "Không tìm thấy ghế để cập nhật", null));
+        }
+
+        res.json(createResponse(200, `Cập nhật trạng thái cho ${updateResult.modifiedCount} ghế thành công`, null));
+    } catch (error) {
+        console.error("Update multiple seats status error:", error);
+        res.status(500).json(createResponse(500, "Lỗi khi cập nhật trạng thái ghế", error.message));
     }
 };
