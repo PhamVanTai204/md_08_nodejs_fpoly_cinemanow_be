@@ -81,6 +81,7 @@ exports.login = async (req, res) => {
       error: null,
       data: {
         userId: user._id,
+        url_image: user.url_image,
         user_name: user.user_name,
         email: user.email,
         role: user.role,
