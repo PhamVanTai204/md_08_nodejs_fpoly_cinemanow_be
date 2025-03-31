@@ -75,7 +75,17 @@ exports.login = async (req, res) => {
       return res.status(401).json({ code: 401, error: 'Mật khẩu không đúng' });
     }
 
-    const token = jwt.sign({ userId: user._id, user_name: user.user_name, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign(
+      { 
+        userId: user._id, 
+        user_name: user.user_name, 
+        role: user.role, 
+        url_image: user.url_image 
+      }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '1h' }
+    );
+
     res.json({
       code: 200,
       error: null,
@@ -84,6 +94,7 @@ exports.login = async (req, res) => {
         user_name: user.user_name,
         email: user.email,
         role: user.role,
+        url_image: user.url_image,
       },
       token: token,
     });
@@ -279,4 +290,141 @@ exports.getUsersByRole = async (req, res) => {
   } catch (error) {
     return res.status(500).json(createResponse(500, 'Lỗi server', error.message));
   }
+};
+
+// Lấy thông tin user theo email
+exports.getUserByEmail = async (req, res) => {
+    try {
+        const email = req.params.email;
+
+        // Kiểm tra email có được cung cấp không
+        if (!email) {
+            return res.status(400).json({
+                status: false,
+                message: 'Vui lòng cung cấp email',
+                data: null
+            });
+        }
+
+        // Tìm user theo email
+        const user = await User.findOne({ email });
+
+        // Kiểm tra user có tồn tại không
+        if (!user) {
+            return res.status(404).json({
+                status: false,
+                message: 'Không tìm thấy người dùng với email này',
+                data: null
+            });
+        }
+
+        // Format lại thông tin user trước khi trả về
+        const userInfo = {
+            _id: user._id,
+            user_name: user.user_name,
+            email: user.email,
+            full_name: user.full_name || '',
+            phone_number: user.phone_number || '',
+            url_image: user.url_image,
+            date_of_birth: user.date_of_birth || '',
+            gender: user.gender || '',
+            role: user.role
+        };
+
+        // Trả về thông tin user
+        res.status(200).json({
+            status: true,
+            message: 'Lấy thông tin người dùng thành công',
+            data: userInfo
+        });
+
+    } catch (error) {
+        console.error('Get user by email error:', error);
+        res.status(500).json({
+            status: false,
+            message: 'Lỗi khi lấy thông tin người dùng',
+            data: null
+        });
+    }
+};
+
+// Refresh token
+exports.refreshToken = async (req, res) => {
+    try {
+        const oldToken = req.params.token;
+        
+        if (!oldToken) {
+            return res.status(401).json({
+                status: false,
+                message: 'Token không được cung cấp',
+                data: null
+            });
+        }
+
+        // Xác thực token cũ
+        jwt.verify(oldToken, process.env.JWT_SECRET, async (err, decoded) => {
+            if (err) {
+                return res.status(401).json({
+                    status: false,
+                    message: 'Token không hợp lệ hoặc đã hết hạn',
+                    data: null
+                });
+            }
+
+            try {
+                // Lấy thông tin user từ decoded token
+                const user = await User.findById(decoded.userId);
+                
+                if (!user) {
+                    return res.status(404).json({
+                        status: false,
+                        message: 'Không tìm thấy người dùng',
+                        data: null
+                    });
+                }
+
+                // Tạo token mới
+                const newToken = jwt.sign(
+                    { 
+                        userId: user._id, 
+                        email: user.email,
+                        avatar: user.avatar,
+                        user_name: user.user_name, 
+                        role: user.role 
+                    }, 
+                    process.env.JWT_SECRET, 
+                    { expiresIn: '1h' }
+                );
+
+                // Trả về token mới
+                res.json({
+                    status: true,
+                    message: 'Refresh token thành công',
+                    data: {
+                        userId: user._id,
+                        user_name: user.user_name,
+                        email: user.email,
+                        role: user.role,
+                        token: newToken
+                    }
+                });
+
+            } catch (error) {
+                console.error('Refresh token error:', error);
+                res.status(500).json({
+                    status: false,
+                    message: 'Lỗi server khi refresh token',
+                    data: null
+                });
+            }
+        });
+
+    } catch (error) {
+        console.error('Refresh token error:', error);
+        res.status(500).json({
+            status: false,
+            message: 'Lỗi server',
+            data: null
+        });
+    }
 };
