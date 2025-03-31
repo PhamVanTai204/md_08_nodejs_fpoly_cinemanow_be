@@ -2,6 +2,7 @@ const Seat = require('../models/seat');
 const Room = require('../models/room');
 const createResponse = require('../utils/responseHelper');
 const { updateRoomTotalSeats } = require('./room.controller');
+const mongoose = require('mongoose');
 
 // Lấy tất cả ghế
 exports.getAllSeats = async (req, res) => {
@@ -186,25 +187,36 @@ exports.addMultipleSeats = async (req, res) => {
         let seats = [];
         for (let i = 0; i < rows; i++) {
             for (let j = 0; j < cols; j++) {
-                const seatId = `${room_id}-${String.fromCharCode(65 + i)}${j + 1}`; // Tạo ID ghế
-                const column = j + 1;
-                const row = String.fromCharCode(65 + i);
+                const row = String.fromCharCode(65 + i); // Chuyển số thành chữ cái A, B, C,...
+                const col = (j + 1).toString().padStart(2, '0'); // Đảm bảo số cột luôn có 2 chữ số
+                const seatLabel = `${row}${col}`; // Tạo nhãn ghế: A01, A02,...
 
                 seats.push({
-                    seat_id: seatId,
+                    seat_id: seatLabel, // Sử dụng trực tiếp nhãn ghế làm seat_id
                     room_id,
                     seat_status,
                     seat_type,
                     price_seat,
-                    column_of_seat: column.toString(),
+                    column_of_seat: col,
                     row_of_seat: row
                 });
             }
         }
 
-        // Chèn ghế vào database
-        await Seat.insertMany(seats);
-        res.status(201).json(createResponse(201, `Thêm ${rows * cols} ghế thành công`, null));
+        // Xóa ghế cũ trong phòng (nếu có)
+        await Seat.deleteMany({ room_id });
+
+        // Chèn ghế mới vào database
+        const createdSeats = await Seat.insertMany(seats);
+
+        // Cập nhật tổng số ghế trong phòng
+        room.total_seat = createdSeats.length;
+        await room.save();
+
+        res.status(201).json(createResponse(201, `Thêm ${rows * cols} ghế thành công`, {
+            total_seats: createdSeats.length,
+            seats: createdSeats
+        }));
     } catch (error) {
         console.error("Lỗi khi thêm ghế hàng loạt:", error);
         res.status(500).json(createResponse(500, "Lỗi khi thêm ghế", error.message));
@@ -266,5 +278,91 @@ exports.updateMultipleSeatsStatus = async (req, res) => {
     } catch (error) {
         console.error("Update multiple seats status error:", error);
         res.status(500).json(createResponse(500, "Lỗi khi cập nhật trạng thái ghế", error.message));
+    }
+};
+
+// Thêm nhiều ghế vào phòng
+exports.createMultipleSeats = async (req, res) => {
+    try {
+        const { room_id, rows, columns, seat_types, prices } = req.body;
+
+        // Kiểm tra room_id có tồn tại
+        const room = await Room.findById(room_id);
+        if (!room) {
+            return res.status(404).json({
+                status: false,
+                message: 'Không tìm thấy phòng',
+                data: null
+            });
+        }
+
+        // Xóa tất cả ghế cũ trong phòng (nếu có)
+        await Seat.deleteMany({ room_id });
+
+        const seats = [];
+        const rowLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+        // Tạo ghế theo hàng và cột
+        for (let i = 0; i < rows; i++) {
+            for (let j = 0; j < columns; j++) {
+                const rowLabel = rowLetters[i];
+                const columnLabel = (j + 1).toString().padStart(2, '0');
+                
+                // Xác định loại ghế và giá dựa vào vị trí
+                let seat_type = 'standard';
+                let price = prices.standard || 50000;
+
+                // Ghế VIP thường ở giữa phòng
+                if (i >= Math.floor(rows * 0.3) && i < Math.floor(rows * 0.7) &&
+                    j >= Math.floor(columns * 0.3) && j < Math.floor(columns * 0.7)) {
+                    seat_type = 'vip';
+                    price = prices.vip || 70000;
+                }
+
+                // Ghế đôi thường ở cuối phòng
+                if (i >= Math.floor(rows * 0.7) && j % 2 === 0 && j < columns - 1) {
+                    seat_type = 'couple';
+                    price = prices.couple || 120000;
+                    // Bỏ qua ghế tiếp theo vì ghế đôi chiếm 2 vị trí
+                    j++;
+                }
+
+                const seat = {
+                    seat_id: `${room_id}-${rowLabel}${columnLabel}`,
+                    room_id,
+                    seat_status: 'available',
+                    seat_type,
+                    price_seat: price,
+                    column_of_seat: columnLabel,
+                    row_of_seat: rowLabel
+                };
+
+                seats.push(seat);
+            }
+        }
+
+        // Lưu tất cả ghế vào database
+        const createdSeats = await Seat.insertMany(seats);
+
+        // Cập nhật tổng số ghế trong phòng
+        room.total_seat = createdSeats.length;
+        await room.save();
+
+        res.status(201).json({
+            status: true,
+            message: 'Tạo ghế thành công',
+            data: {
+                total_seats: createdSeats.length,
+                seats: createdSeats
+            }
+        });
+
+    } catch (error) {
+        console.error('Create seats error:', error);
+        res.status(500).json({
+            status: false,
+            message: 'Lỗi khi tạo ghế',
+            data: null
+        });
     }
 };
