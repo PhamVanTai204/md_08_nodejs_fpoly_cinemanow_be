@@ -16,5 +16,5 @@ router.get('/getAll', uc.getAllUsers);
 
 // Lấy thông tin user theo ID
 router.get('/getById/:id', uc.getUserById);
-
+router.put('/updateprofile/:id', uc.updateUserDetails);
 module.exports = router;

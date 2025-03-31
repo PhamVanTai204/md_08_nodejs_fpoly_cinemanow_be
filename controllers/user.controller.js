@@ -263,3 +263,30 @@ exports.getUserById = async (req, res) => {
     res.status(500).json(createResponse(500, 'Lỗi server', error.message));
   }
 };
+exports.updateUserDetails = async (req, res) => {
+  try {
+    const { id } = req.params; // Lấy ID từ URL
+    const updateData = req.body; // Dữ liệu từ request body
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json(createResponse(404, 'User không tồn tại', null));
+    }
+
+    // Cập nhật tất cả các trường có trong request body
+    const fieldsToUpdate = ['phone_number', 'full_name', 'date_of_birth', 'gender', 'url_image'];
+    fieldsToUpdate.forEach(field => {
+      if (updateData[field] !== undefined) {
+        user[field] = updateData[field]; // Cập nhật luôn nếu có dữ liệu mới
+      }
+    });
+
+    await user.save();
+
+    res.json(createResponse(200, 'Cập nhật thông tin thành công', user));
+  } catch (error) {
+    res.status(500).json(createResponse(500, 'Lỗi server', error.message));
+  }
+};
+
+
