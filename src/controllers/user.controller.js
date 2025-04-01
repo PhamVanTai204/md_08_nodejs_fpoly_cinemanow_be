@@ -287,14 +287,16 @@ exports.getUserByEmail = async (req, res) => {
   }
 };
 
-
 exports.refreshToken = async (req, res) => {
-  const oldToken = req.params.token;
-  if (!oldToken) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json(createResponse(401, 'Token không được cung cấp', null));
   }
 
-  jwt.verify(oldToken, process.env.JWT_SECRET, async (err, decoded) => {
+  const token = authHeader.split(' ')[1];
+
+  jwt.verify(token, process.env.JWT_SECRET, async (err, decoded) => {
     if (err) {
       return res.status(401).json(createResponse(401, 'Token không hợp lệ hoặc đã hết hạn', null));
     }
@@ -308,21 +310,16 @@ exports.refreshToken = async (req, res) => {
       const newToken = jwt.sign({
         userId: user._id,
         email: user.email,
-        avatar: user.avatar,
         user_name: user.user_name,
-        role: user.role
+        role: user.role,
       }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-      return res.status(200).json(createResponse(200, null, {
-        userId: user._id,
-        user_name: user.user_name,
-        email: user.email,
-        role: user.role,
-        token: newToken
-      }));
+      // ✅ Chỉ trả chuỗi thông báo thành công
+      return res.status(200).json(createResponse(200, null, 'Gia hạn token thành công'));
     } catch (error) {
       return res.status(500).json(createResponse(500, 'Lỗi server khi refresh token', error.message));
     }
   });
 };
+
 

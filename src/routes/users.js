@@ -12,6 +12,6 @@ router.get('/getAll', uc.getAllUsers);
 router.get('/getById/:id', uc.getUserById);
 router.get('/usersByRole/:role', uc.getUsersByRole);
 router.get('/searchEmail/:email', uc.getUserByEmail);
-router.get('/refresh-token/:token', uc.refreshToken);
+router.get('/refresh-token', uc.refreshToken);
 
 module.exports = router;
