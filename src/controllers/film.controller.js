@@ -62,10 +62,6 @@ exports.getFilm = async (req, res) => {
     }
 };
 
-
-
-
-
 // Lấy phim theo ID
 exports.getFilmId = async (req, res) => {
     try {
@@ -136,6 +132,24 @@ exports.addFilm = async (req, res) => {
     }
 };
 
+// Thêm nhiều phim
+exports.bulkInsertFilms = async (req, res) => {
+    const filmList = req.body;
+  
+    if (!Array.isArray(filmList) || filmList.length === 0) {
+      return res.status(400).json(createResponse(400, 'Dữ liệu phải là một mảng phim', null));
+    }
+  
+    try {
+      const inserted = await Film.insertMany(filmList, { ordered: false }); // cho phép bỏ qua lỗi nếu 1 phần tử bị fail
+      return res.status(201).json(createResponse(201, null, {
+        message: `Thêm ${inserted.length} phim thành công`,
+        inserted
+      }));
+    } catch (error) {
+      return res.status(500).json(createResponse(500, 'Lỗi khi thêm phim hàng loạt', error.message));
+    }
+  };
 
 
 // Cập nhật phim

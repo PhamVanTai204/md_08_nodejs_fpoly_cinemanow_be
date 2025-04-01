@@ -11,5 +11,6 @@ router.put('/editfilm/:id', uc.updateFilm)
 router.delete('/deletefilm/:id', uc.deleteFilm)
 router.get('/genre/:genreId', uc.getFilmsByGenre);
 router.get('/search', uc.searchFilm);
+router.post('/bulk-insert', uc.bulkInsertFilms);
 
 module.exports = router;
