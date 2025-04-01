@@ -172,27 +172,27 @@ exports.deleteSeat = async (req, res) => {
 exports.addMultipleSeats = async (req, res) => {
     const { room_id, rows, cols, seat_status, seat_type, price_seat } = req.body;
 
-    // Kiểm tra đầu vào
     if (!room_id || !rows || !cols || !seat_status || !seat_type || !price_seat) {
         return res.status(400).json(createResponse(400, "Thiếu thông tin bắt buộc", null));
     }
 
     try {
-        // Kiểm tra phòng có tồn tại không
         const room = await Room.findById(room_id);
         if (!room) {
             return res.status(404).json(createResponse(404, "Không tìm thấy phòng", null));
         }
 
-        let seats = [];
+        let newSeats = [];
         for (let i = 0; i < rows; i++) {
             for (let j = 0; j < cols; j++) {
-                const row = String.fromCharCode(65 + i); // Chuyển số thành chữ cái A, B, C,...
-                const col = (j + 1).toString().padStart(2, '0'); // Đảm bảo số cột luôn có 2 chữ số
-                const seatLabel = `${row}${col}`; // Tạo nhãn ghế: A01, A02,...
+ 
+                const seatId = `${String.fromCharCode(65 + i)}${j + 1}`;
+                const column = j + 1;
+                const row = String.fromCharCode(65 + i);
 
-                seats.push({
-                    seat_id: seatLabel, // Sử dụng trực tiếp nhãn ghế làm seat_id
+                newSeats.push({
+                    seat_id: seatId,
+ 
                     room_id,
                     seat_status,
                     seat_type,
@@ -203,25 +203,28 @@ exports.addMultipleSeats = async (req, res) => {
             }
         }
 
-        // Xóa ghế cũ trong phòng (nếu có)
-        await Seat.deleteMany({ room_id });
+         // 🔹 Chỉ lấy danh sách ghế trong phòng hiện tại
+        const existingSeats = await Seat.find({ room_id });
+        const existingSeatIds = new Set(existingSeats.map(s => s.seat_id));
 
-        // Chèn ghế mới vào database
-        const createdSeats = await Seat.insertMany(seats);
+        // 🔹 Lọc bỏ ghế nào đã tồn tại trong phòng trước khi thêm vào
+        newSeats = newSeats.filter(seat => !existingSeatIds.has(seat.seat_id));
 
-        // Cập nhật tổng số ghế trong phòng
-        room.total_seat = createdSeats.length;
-        await room.save();
+        if (newSeats.length === 0) {
+            return res.status(400).json(createResponse(400, "Tất cả các ghế đã tồn tại trong phòng", null));
+        }
 
-        res.status(201).json(createResponse(201, `Thêm ${rows * cols} ghế thành công`, {
-            total_seats: createdSeats.length,
-            seats: createdSeats
-        }));
+        // Thêm ghế mới vào database
+        await Seat.insertMany(newSeats);
+        res.status(201).json(createResponse(201, `Thêm ${newSeats.length} ghế thành công`, null));
+ 
     } catch (error) {
         console.error("Lỗi khi thêm ghế hàng loạt:", error);
         res.status(500).json(createResponse(500, "Lỗi khi thêm ghế", error.message));
     }
 };
+
+
 exports.deleteMultipleSeats = async (req, res) => {
     const { room_id, seat_ids } = req.body;
 
