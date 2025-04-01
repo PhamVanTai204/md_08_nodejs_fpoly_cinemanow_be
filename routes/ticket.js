@@ -17,4 +17,7 @@ router.put('/update/:id', ticketController.updateTicket);
 // Xóa vé
 router.delete('/delete/:id', ticketController.deleteTicket);
 
+// API đặt vé từ mobile app
+router.post('/mobile-booking', ticketController.bookTicket);
+
 module.exports = router; 

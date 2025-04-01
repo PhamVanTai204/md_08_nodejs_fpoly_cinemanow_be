@@ -194,4 +194,84 @@ exports.deleteTicket = async (req, res) => {
         console.error('Delete ticket error:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi xóa vé', null));
     }
+};
+
+// Đặt vé từ mobile app
+exports.bookTicket = async (req, res) => {
+    try {
+        const { user_id, movie_id, cinema_id, room_id, showtime_id, seat_ids, total_amount } = req.body;
+
+        // Kiểm tra các trường bắt buộc
+        if (!user_id || !movie_id || !cinema_id || !room_id || !showtime_id || !seat_ids || !Array.isArray(seat_ids)) {
+            return res.status(400).json({
+                status: false,
+                message: 'Thiếu thông tin đặt vé',
+                data: null
+            });
+        }
+
+        // Tạo mã vé ngẫu nhiên
+        const ticket_id = 'TIX' + Date.now();
+
+        // Tạo mảng ghế với giá
+        const seats = seat_ids.map(seat_id => ({
+            seat_id: seat_id,
+            price: 0 // Giá sẽ được cập nhật sau khi lấy thông tin ghế
+        }));
+
+        // Tạo vé mới
+        const newTicket = new Ticket({
+            ticket_id,
+            user_id,
+            showtime_id,
+            seats,
+            total_amount: total_amount || 0,
+            status: 'pending'
+        });
+
+        // Lưu vé
+        const savedTicket = await newTicket.save();
+
+        // Lấy thông tin đầy đủ của vé
+        const populatedTicket = await Ticket.findById(savedTicket._id)
+            .populate('user_id', 'user_name email phone_number')
+            .populate({
+                path: 'showtime_id',
+                populate: {
+                    path: 'movie_id',
+                    select: 'title image_film duration'
+                }
+            })
+            .populate('seats.seat_id', 'seat_type row_of_seat column_of_seat price_seat');
+
+        // Format response theo yêu cầu
+        const response = [{
+            ticket_id: populatedTicket.ticket_id,
+            movie_name: populatedTicket.showtime_id.movie_id.title,
+            movie_image: populatedTicket.showtime_id.movie_id.image_film,
+            duration: populatedTicket.showtime_id.movie_id.duration,
+            showtime: populatedTicket.showtime_id.start_time,
+            seats: populatedTicket.seats.map(seat => ({
+                seat_name: `${seat.seat_id.row_of_seat}${seat.seat_id.column_of_seat}`,
+                seat_type: seat.seat_id.seat_type
+            })),
+            total_amount: populatedTicket.total_amount,
+            status: populatedTicket.status,
+            booking_time: populatedTicket.createdAt
+        }];
+
+        res.status(201).json({
+            status: true,
+            message: 'Đặt vé thành công',
+            data: response
+        });
+
+    } catch (error) {
+        console.error('Book ticket error:', error);
+        res.status(500).json({
+            status: false,
+            message: 'Lỗi khi đặt vé',
+            data: null
+        });
+    }
 }; 
