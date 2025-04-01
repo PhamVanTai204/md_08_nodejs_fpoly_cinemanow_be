@@ -6,50 +6,32 @@ const User = require('../models/user');
 const OTP = require('../models/otp.model'); // Import model OTP
 const createResponse = require('../utils/responseHelper');
 
-
-
-// Đăng ký
-
 exports.reg = async (req, res) => {
   const { user_name, email, password, url_image, role } = req.body;
 
-  // Kiểm tra thông tin bắt buộc
-  if (!user_name || !email || !password || role === undefined) {
-    return res.status(400).json(createResponse(400, 'Vui lòng điền đầy đủ thông tin', null));
+  if (!user_name) return res.status(400).json(createResponse(400, 'Vui lòng nhập tên người dùng', null));
+  if (!email) return res.status(400).json(createResponse(400, 'Vui lòng nhập email', null));
+  if (!password) return res.status(400).json(createResponse(400, 'Vui lòng nhập mật khẩu', null));
+  if (!url_image) return res.status(400).json(createResponse(400, 'Vui lòng cung cấp ảnh đại diện (url_image)', null));
+  if (role === undefined || role === null || isNaN(role)) {
+    return res.status(400).json(createResponse(400, 'Vui lòng chọn vai trò người dùng (role)', null));
   }
 
-  // Kiểm tra user_name (chỉ cho phép chữ cái và số, ít nhất 3 ký tự)
   const usernameRegex = /^[a-zA-Z0-9]{3,}$/;
-  if (!usernameRegex.test(user_name)) {
-    return res.status(400).json(createResponse(400, 'Username không hợp lệ', null));
-  }
-
-  // Kiểm tra password (ít nhất 6 ký tự, có chữ và số)
   const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
-  if (!passwordRegex.test(password)) {
-    return res.status(400).json(createResponse(400, 'Password không hợp lệ', null));
-  }
-
-  // Kiểm tra email (chỉ chấp nhận @gmail.com)
   const emailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/;
-  if (!emailRegex.test(email)) {
-    return res.status(400).json(createResponse(400, 'Email phải có đuôi @gmail.com', null));
-  }
+
+  if (!usernameRegex.test(user_name)) return res.status(400).json(createResponse(400, 'Username không hợp lệ', null));
+  if (!passwordRegex.test(password)) return res.status(400).json(createResponse(400, 'Password không hợp lệ', null));
+  if (!emailRegex.test(email)) return res.status(400).json(createResponse(400, 'Email phải có định dạng @gmail.com', null));
 
   try {
-    // Kiểm tra xem user_name hoặc email đã tồn tại chưa
-    let user = await User.findOne({ $or: [{ email }, { user_name }] });
-    if (user) {
-      return res.status(409).json(createResponse(409, 'Email hoặc user_name đã tồn tại', null));
-    }
+    const user = await User.findOne({ $or: [{ email }, { user_name }] });
+    if (user) return res.status(409).json(createResponse(409, 'Email hoặc username đã tồn tại', null));
 
-    // Mã hóa password trước khi lưu
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Tạo user mới
-    user = new User({ user_name, email, password: hashedPassword, url_image, role });
-    await user.save();
+    const hashedPassword = await bcrypt.hash(password, await bcrypt.genSalt(10));
+    const newUser = new User({ user_name, email, password: hashedPassword, url_image, role });
+    await newUser.save();
 
     return res.status(201).json(createResponse(201, null, 'Đăng ký thành công'));
   } catch (error) {
@@ -57,49 +39,42 @@ exports.reg = async (req, res) => {
   }
 };
 
-// Đăng nhập
 exports.login = async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ code: 400, error: 'Vui lòng nhập email và mật khẩu' });
-  }
+
+  if (!email) return res.status(400).json(createResponse(400, 'Vui lòng nhập email', null));
+  if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/.test(email))
+    return res.status(400).json(createResponse(400, 'Email phải có định dạng @gmail.com', null));
+  if (!password) return res.status(400).json(createResponse(400, 'Vui lòng nhập mật khẩu', null));
 
   try {
     const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ code: 404, error: 'Email không tồn tại' });
-    }
+    if (!user) return res.status(404).json(createResponse(404, 'Email không tồn tại', null));
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ code: 401, error: 'Mật khẩu không đúng' });
-    }
+    if (!isMatch) return res.status(401).json(createResponse(401, 'Mật khẩu không chính xác', null));
 
     const token = jwt.sign(
-      { 
-        userId: user._id, 
-        user_name: user.user_name, 
-        role: user.role, 
-        url_image: user.url_image 
-      }, 
-      process.env.JWT_SECRET, 
-      { expiresIn: '1h' }
-    );
-
-    res.json({
-      code: 200,
-      error: null,
-      data: {
+      {
         userId: user._id,
         user_name: user.user_name,
-        email: user.email,
         role: user.role,
         url_image: user.url_image,
       },
-      token: token,
-    });
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    return res.status(200).json(createResponse(200, null, {
+      userId: user._id,
+      user_name: user.user_name,
+      email: user.email,
+      role: user.role,
+      url_image: user.url_image,
+      token
+    }));
   } catch (error) {
-    res.status(500).json({ code: 500, error: 'Lỗi server', message: error.message });
+    return res.status(500).json(createResponse(500, 'Lỗi server', error.message));
   }
 };
 
