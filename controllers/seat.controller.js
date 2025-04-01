@@ -185,25 +185,23 @@ exports.addMultipleSeats = async (req, res) => {
         let newSeats = [];
         for (let i = 0; i < rows; i++) {
             for (let j = 0; j < cols; j++) {
- 
                 const seatId = `${String.fromCharCode(65 + i)}${j + 1}`;
                 const column = j + 1;
                 const row = String.fromCharCode(65 + i);
 
                 newSeats.push({
                     seat_id: seatId,
- 
                     room_id,
                     seat_status,
                     seat_type,
                     price_seat,
-                    column_of_seat: col,
+                    column_of_seat: column,
                     row_of_seat: row
                 });
             }
         }
 
-         // 🔹 Chỉ lấy danh sách ghế trong phòng hiện tại
+        // 🔹 Chỉ lấy danh sách ghế trong phòng hiện tại
         const existingSeats = await Seat.find({ room_id });
         const existingSeatIds = new Set(existingSeats.map(s => s.seat_id));
 
@@ -217,7 +215,7 @@ exports.addMultipleSeats = async (req, res) => {
         // Thêm ghế mới vào database
         await Seat.insertMany(newSeats);
         res.status(201).json(createResponse(201, `Thêm ${newSeats.length} ghế thành công`, null));
- 
+
     } catch (error) {
         console.error("Lỗi khi thêm ghế hàng loạt:", error);
         res.status(500).json(createResponse(500, "Lỗi khi thêm ghế", error.message));
@@ -310,7 +308,7 @@ exports.createMultipleSeats = async (req, res) => {
             for (let j = 0; j < columns; j++) {
                 const rowLabel = rowLetters[i];
                 const columnLabel = (j + 1).toString().padStart(2, '0');
-                
+
                 // Xác định loại ghế và giá dựa vào vị trí
                 let seat_type = 'standard';
                 let price = prices.standard || 50000;
