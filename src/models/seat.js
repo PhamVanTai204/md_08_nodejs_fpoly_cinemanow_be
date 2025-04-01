@@ -3,8 +3,7 @@ const mongoose = require('mongoose');
 const seatSchema = new mongoose.Schema({
     seat_id: {
         type: String,
-        required: true,
-        unique: true
+        required: true
     },
     room_id: {
         type: mongoose.Schema.Types.ObjectId,
@@ -38,5 +37,6 @@ const seatSchema = new mongoose.Schema({
 }, {
     timestamps: true
 });
+seatSchema.index({ seat_id: 1, room_id: 1 }, { unique: true });
 
 module.exports = mongoose.model('Seat', seatSchema); 
