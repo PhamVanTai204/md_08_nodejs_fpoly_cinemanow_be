@@ -322,4 +322,47 @@ exports.refreshToken = async (req, res) => {
   });
 };
 
+exports.updateProfile = async (req, res) => {
+  const { userId } = req.params;
+  const { full_name, phone_number, date_of_birth, gender } = req.body;
+
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(404).json(createResponse(404, 'ID người dùng không hợp lệ', null));
+  }
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json(createResponse(404, 'Không tìm thấy người dùng', null));
+    }
+
+    if (
+      full_name === undefined &&
+      phone_number === undefined &&
+      date_of_birth === undefined &&
+      gender === undefined
+    ) {
+      return res.status(200).json(createResponse(200, null, 'Không có trường nào được cập nhật'));
+    }
+
+    if (full_name !== undefined) user.full_name = full_name;
+    if (phone_number !== undefined) user.phone_number = phone_number;
+
+    if (date_of_birth !== undefined) {
+      const date = new Date(date_of_birth);
+      if (isNaN(date.getTime())) {
+        return res.status(400).json(createResponse(400, 'Ngày sinh không hợp lệ', null));
+      }
+      user.date_of_birth = date;
+    }
+
+    if (gender !== undefined) user.gender = gender;
+
+    await user.save();
+
+    return res.status(200).json(createResponse(200, null, 'Cập nhật thông tin thành công'));
+  } catch (error) {
+    return res.status(500).json(createResponse(500, 'Lỗi khi cập nhật thông tin', error.message));
+  }
+};
 

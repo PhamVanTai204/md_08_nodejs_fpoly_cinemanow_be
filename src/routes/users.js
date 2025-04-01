@@ -14,4 +14,6 @@ router.get('/usersByRole/:role', uc.getUsersByRole);
 router.get('/searchEmail/:email', uc.getUserByEmail);
 router.get('/refresh-token', uc.refreshToken);
 
+router.patch('/update-profile/:userId', uc.updateProfile);
+
 module.exports = router;
