@@ -11,24 +11,24 @@ const cors = require('cors'); // Chỉ khai báo một lần!
 dotenv.config();
 
 
-var indexRouter = require('./routes/index');
-var usersRouter = require('./routes/users');
-var filmRouter = require('./routes/film');
-var cinemaRouter = require('./routes/cinema')
-var showTimeRoutes = require('./routes/showTime'); // Import routes suất chiếu
-var genres = require('./routes/genres');
-var roomRouter = require('./routes/room');
-var seatRouter = require('./routes/seat'); // Import routes seat
-var voucherRouter = require('./routes/voucher'); // Import routes voucher
-var comboRouter = require('./routes/combo'); // Import routes combo
-var ticketRouter = require('./routes/ticket'); // Import routes ticket
-var paymentRouter = require('./routes/payment'); // Import routes payment
-var paymentMethodRouter = require('./routes/paymentMethod'); // Import routes payment method
-var paymentStatusRouter = require('./routes/paymentStatus'); // Import routes payment status
-var reviewRouter = require('./routes/review'); // Import routes review
-var transactionRouter = require('./routes/transaction'); // Import routes transaction
+var indexRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/index');
+var usersRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/users');
+var filmRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/film');
+var cinemaRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/cinema')
+var showTimeRoutes = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/showTime'); // Import routes suất chiếu
+var genres = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/genres');
+var roomRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/room');
+var seatRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/seat'); // Import routes seat
+var voucherRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/voucher'); // Import routes voucher
+var comboRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/combo'); // Import routes combo
+var ticketRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/ticket'); // Import routes ticket
+var paymentRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/payment'); // Import routes payment
+var paymentMethodRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/paymentMethod'); // Import routes payment method
+var paymentStatusRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/paymentStatus'); // Import routes payment status
+var reviewRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/review'); // Import routes review
+var transactionRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/transaction'); // Import routes transaction
 
-var bannerRouter = require('./routes/banner'); // Import routes banner
+var bannerRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/banner'); // Import routes banner
 
 var app = express();
 
