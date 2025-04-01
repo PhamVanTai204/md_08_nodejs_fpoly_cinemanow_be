@@ -17,4 +17,7 @@ router.put('/update/:id', voucherController.updateVoucher);
 // Xóa voucher
 router.delete('/delete/:id', voucherController.deleteVoucher);
 
+// Áp dụng voucher vào đơn hàng
+router.post('/apply', voucherController.applyVoucher);
+
 module.exports = router; 

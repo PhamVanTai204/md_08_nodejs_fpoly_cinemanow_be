@@ -168,4 +168,73 @@ exports.deleteVoucher = async (req, res) => {
         console.error('Delete voucher error:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi xóa voucher', null));
     }
+};
+
+// Áp dụng voucher vào đơn hàng
+exports.applyVoucher = async (req, res) => {
+    try {
+        const { code_voucher, total_amount } = req.body;
+
+        // Kiểm tra mã voucher
+        if (!code_voucher) {
+            return res.status(400).json(createResponse(400, 'Vui lòng cung cấp mã voucher', null));
+        }
+
+        // Kiểm tra tổng tiền
+        if (!total_amount || total_amount <= 0) {
+            return res.status(400).json(createResponse(400, 'Tổng tiền không hợp lệ', null));
+        }
+
+        // Tìm voucher theo mã code
+        const voucher = await Voucher.findOne({ code_voucher });
+
+        // Kiểm tra voucher tồn tại
+        if (!voucher) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy voucher với mã này', null));
+        }
+
+        // Kiểm tra voucher còn active không
+        if (voucher.status_voucher !== 'active') {
+            return res.status(400).json(createResponse(400, 'Voucher đã hết hạn hoặc không khả dụng', null));
+        }
+
+        // Kiểm tra còn số lượng không
+        if (voucher.total_voucher <= 0) {
+            return res.status(400).json(createResponse(400, 'Voucher đã hết số lượng', null));
+        }
+
+        // Kiểm tra thời hạn sử dụng
+        const currentDate = new Date();
+        if (currentDate < voucher.start_date_voucher || currentDate > voucher.end_date_voucher) {
+            return res.status(400).json(createResponse(400, 'Voucher nằm ngoài thời hạn sử dụng', null));
+        }
+
+        // Tính toán số tiền giảm
+        let discountAmount = voucher.voucher_value;
+        
+        // Đảm bảo số tiền giảm không vượt quá tổng tiền
+        if (discountAmount > total_amount) {
+            discountAmount = total_amount;
+        }
+
+        // Tính tổng tiền sau khi giảm
+        const finalAmount = total_amount - discountAmount;
+
+        // Giảm số lượng voucher
+        voucher.total_voucher -= 1;
+        await voucher.save();
+
+        // Trả về kết quả
+        res.json(createResponse(200, 'Áp dụng voucher thành công', {
+            voucher_id: voucher.voucher_id,
+            code_voucher: voucher.code_voucher,
+            voucher_value: voucher.voucher_value,
+            discount_amount: discountAmount,
+            original_amount: total_amount,
+            final_amount: finalAmount
+        }));
+    } catch (error) {
+        console.error('Apply voucher error:', error);
+        res.status(500).json(createResponse(500, 'Lỗi khi áp dụng voucher', null));
+    }
 }; 
