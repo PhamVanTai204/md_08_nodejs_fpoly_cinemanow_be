@@ -54,7 +54,7 @@ exports.createVoucher = async (req, res) => {
         // Kiểm tra ngày hợp lệ
         const startDate = new Date(start_date_voucher);
         const endDate = new Date(end_date_voucher);
-        
+
         if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
             return res.status(400).json(createResponse(400, 'Ngày không hợp lệ', null));
         }
@@ -211,7 +211,7 @@ exports.applyVoucher = async (req, res) => {
 
         // Tính toán số tiền giảm
         let discountAmount = voucher.voucher_value;
-        
+
         // Đảm bảo số tiền giảm không vượt quá tổng tiền
         if (discountAmount > total_amount) {
             discountAmount = total_amount;
