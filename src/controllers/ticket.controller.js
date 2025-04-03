@@ -48,20 +48,13 @@ exports.getTicketById = async (req, res) => {
     }
 };
 
-// Tạo vé mới
 exports.createTicket = async (req, res) => {
     try {
-        const { ticket_id, user_id, showtime_id, seats, combos, voucher_id, total_amount } = req.body;
+        const { user_id, showtime_id, seats, combos, voucher_id, total_amount } = req.body;
 
         // Kiểm tra đầy đủ thông tin
-        if (!ticket_id || !user_id || !showtime_id || !seats || !total_amount) {
+        if (!user_id || !showtime_id || !seats || !total_amount) {
             return res.status(400).json(createResponse(400, 'Vui lòng cung cấp đầy đủ thông tin', null));
-        }
-
-        // Kiểm tra ticket_id đã tồn tại
-        const existingTicket = await Ticket.findOne({ ticket_id });
-        if (existingTicket) {
-            return res.status(400).json(createResponse(400, 'Mã vé đã tồn tại', null));
         }
 
         // Kiểm tra user tồn tại
@@ -92,7 +85,6 @@ exports.createTicket = async (req, res) => {
         }
 
         const newTicket = new Ticket({
-            ticket_id,
             user_id,
             showtime_id,
             seats,
