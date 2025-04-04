@@ -1,12 +1,12 @@
 const mongoose = require('mongoose');
 
 const paymentStatusSchema = new mongoose.Schema({
-    payment_method_id: {
+    name: {
         type: String,
         required: true,
         unique: true
     },
-    status_order: {
+    description: {
         type: String,
         required: true
     }
