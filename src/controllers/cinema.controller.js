@@ -178,6 +178,7 @@ exports.getCinemasByMovie = async (req, res) => {
                                 st.cinema_id._id.toString() === cinema._id.toString())
                             .map(st => ({
                                 showtime_id: st.showtime_id,
+                                room_id: st.room_id,
                                 start_time: st.start_time,
                                 end_time: st.end_time,
                                 show_date: st.show_date
