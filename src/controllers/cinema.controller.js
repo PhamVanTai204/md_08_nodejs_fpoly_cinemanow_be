@@ -378,11 +378,13 @@ exports.getSeatsByRoom = async (req, res) => {
         const formattedSeats = seats.map(seat => ({
             _id: seat._id,
             seat_id: seat.seat_id,
+            room_id: seat.room_id,
             seat_type: seat.seat_type,
             seat_status: seat.seat_status,
-            price: seat.price_seat,
-            row: seat.row_of_seat,
-            column: seat.column_of_seat
+            price_seat: seat.price_seat,
+            row_of_seat: seat.row_of_seat,
+            column_of_seat: seat.column_of_seat,
+            room_id: seat.room_id
         }));
 
         res.json(createResponse(200, null, formattedSeats));
