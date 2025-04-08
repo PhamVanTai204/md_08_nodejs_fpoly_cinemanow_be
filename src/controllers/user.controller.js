@@ -366,3 +366,19 @@ exports.updateProfile = async (req, res) => {
   }
 };
 
+exports.logout = async (req, res) => {
+  try {
+    return res.status(200).json(createResponse(200, null, 'Đăng xuất thành công'));
+  } catch (error) {
+    return res.status(500).json(createResponse(500, 'Lỗi server khi đăng xuất', error.message));
+  }
+};
+
+exports.logoutAll = async (req, res) => {
+  try {
+    return res.status(200).json(createResponse(200, null, 'Đăng xuất tất cả thiết bị thành công'));
+  } catch (error) {
+    return res.status(500).json(createResponse(500, 'Lỗi server khi đăng xuất tất cả thiết bị', error.message));
+  }
+};
+

@@ -17,6 +17,9 @@ var filmRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/film');
 var cinemaRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/cinema')
 var showTimeRoutes = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/showTime'); // Import routes suất chiếu
 var genres = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/genres');
+var vnpayRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/vnpayment');
+var thongkeRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/thongke');
+
 var roomRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/room');
 var seatRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/seat'); // Import routes seat
 var voucherRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/voucher'); // Import routes voucher
@@ -44,6 +47,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
+app.use('/vnpay', vnpayRouter);
+app.use('/thongke', thongkeRouter);
+
 app.use('/films', filmRouter);
 app.use('/showtimes', showTimeRoutes); // Định nghĩa tiền tố URL
 app.use('/genres', genres);
