@@ -6,5 +6,6 @@ router.get('/date-range', revenueController.getRevenueByDateRange);
 router.get('/day', revenueController.getRevenueByDay);
 router.get('/month', revenueController.getRevenueByMonth);
 
+router.get('/year', revenueController.getRevenueByYear);
 
 module.exports = router;

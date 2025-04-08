@@ -113,6 +113,57 @@ const revenueController = {
             res.status(500).json({ message: error.message });
         }
     },
+    // Get revenue by year
+    getRevenueByYear: async (req, res) => {
+        try {
+            const { year } = req.query;
+
+            if (!year) {
+                return res.status(400).json({ message: 'Year is required' });
+            }
+
+            const startDate = new Date(year, 0, 1);
+            const endDate = new Date(year, 11, 31, 23, 59, 59);
+
+            const payments = await Payment.find({
+                payment_time: {
+                    $gte: startDate,
+                    $lte: endDate
+                },
+                status_order: 'completed'
+            }).populate('ticket_id');
+
+            const totalRevenue = payments.reduce((sum, payment) => sum + payment.ticket_id.total_amount, 0);
+
+            // Group by month
+            const monthlyData = Array(12).fill(0).map((_, index) => {
+                const monthPayments = payments.filter(payment =>
+                    payment.payment_time.getMonth() === index
+                );
+
+                const monthRevenue = monthPayments.reduce((sum, payment) => sum + payment.ticket_id.total_amount, 0);
+
+                return {
+                    month: index + 1,
+                    revenue: monthRevenue,
+                    paymentCount: monthPayments.length,
+                    ticketCount: monthPayments.length // Assuming one payment corresponds to one ticket in this context
+                };
+            });
+
+            res.json({
+                year,
+                totalRevenue,
+                paymentCount: payments.length,
+                ticketCount: payments.length, // Assuming one payment corresponds to one ticket
+                monthlyData
+            });
+        } catch (error) {
+            res.status(500).json({ message: error.message });
+        }
+    },
+
+    // Get detailed revenue statistics
 
 };
 
