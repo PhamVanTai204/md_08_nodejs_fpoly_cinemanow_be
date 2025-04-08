@@ -164,7 +164,110 @@ const revenueController = {
     },
 
     // Get detailed revenue statistics
+    getDetailedRevenueStats: async (req, res) => {
+        try {
+            const { startDate, endDate } = req.query;
 
+            if (!startDate || !endDate) {
+                return res.status(400).json({ message: 'Start date and end date are required' });
+            }
+
+            const payments = await Payment.find({
+                payment_time: {
+                    $gte: new Date(startDate),
+                    $lte: new Date(endDate)
+                },
+                status_order: 'completed'
+            }).populate({
+                path: 'ticket_id',
+                populate: [
+                    { path: 'showtime_id', populate: { path: 'movie_id' } },
+                    { path: 'user_id' }
+                ]
+            });
+
+            const ticketIds = payments.map(payment => payment.ticket_id?._id).filter(id => id);
+            const tickets = await Ticket.find({
+                _id: { $in: ticketIds }
+            }).populate('seats.seat_id user_id showtime_id') // Populate showtime_id trước
+                .populate({ // Sau đó populate movie_id thông qua showtime_id
+                    path: 'showtime_id',
+                    populate: { path: 'movie_id' }
+                });
+            // Calculate total revenue
+            const totalRevenue = tickets.reduce((sum, ticket) => sum + (ticket?.total_amount || 0), 0);
+
+            // Group by movie
+            const movies = {};
+            tickets.forEach(ticket => {
+                const movieId = ticket?.showtime_id?.movie_id?._id;
+                if (movieId) {
+                    if (!movies[movieId]) {
+                        movies[movieId] = {
+                            movie: ticket.showtime_id.movie_id,
+                            revenue: 0,
+                            ticketCount: 0
+                        };
+                    }
+                    movies[movieId].revenue += ticket.total_amount;
+                    movies[movieId].ticketCount += 1;
+                }
+            });
+
+            // Group by payment method
+            const paymentMethods = {};
+            payments.forEach(payment => {
+                const methodId = payment.payment_method_id?.toString();
+                if (methodId) {
+                    if (!paymentMethods[methodId]) {
+                        paymentMethods[methodId] = {
+                            methodId,
+                            revenue: 0,
+                            paymentCount: 0
+                        };
+                    }
+                    const ticket = tickets.find(t => t?._id?.equals(payment.ticket_id?._id));
+                    if (ticket) {
+                        paymentMethods[methodId].revenue += ticket.total_amount;
+                        paymentMethods[methodId].paymentCount += 1;
+                    }
+                }
+            });
+
+            // Get top users
+            const users = {};
+            tickets.forEach(ticket => {
+                const userId = ticket?.user_id?._id?.toString();
+                if (userId) {
+                    if (!users[userId]) {
+                        users[userId] = {
+                            user: ticket.user_id,
+                            spending: 0,
+                            ticketCount: 0
+                        };
+                    }
+                    users[userId].spending += ticket.total_amount;
+                    users[userId].ticketCount += 1;
+                }
+            });
+
+            const topUsers = Object.values(users)
+                .sort((a, b) => b.spending - a.spending)
+                .slice(0, 10);
+
+            res.json({
+                dateRange: { startDate, endDate },
+                totalRevenue,
+                totalPayments: payments.length,
+                totalTickets: tickets.length,
+                movies: Object.values(movies),
+                paymentMethods: Object.values(paymentMethods),
+                topUsers
+            });
+        } catch (error) {
+            res.status(500).json({ message: error.message });
+        }
+    }
 };
 
 module.exports = revenueController;
