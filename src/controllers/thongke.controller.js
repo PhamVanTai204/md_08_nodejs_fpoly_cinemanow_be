@@ -38,7 +38,43 @@ const revenueController = {
             res.status(500).json({ message: error.message });
         }
     },
+    // Get revenue by day
+    getRevenueByDay: async (req, res) => {
+        try {
+            const { year, month, day } = req.query;
 
+            if (!year || !month || !day) {
+                return res.status(400).json({ message: 'Year, month and day are required' });
+            }
+
+            const startDate = new Date(year, month - 1, day);
+            const endDate = new Date(year, month - 1, day, 23, 59, 59);
+
+            const payments = await Payment.find({
+                payment_time: {
+                    $gte: startDate,
+                    $lte: endDate
+                },
+                status_order: 'completed'
+            }).populate('ticket_id');
+
+            const ticketIds = payments.map(payment => payment.ticket_id._id);
+            const tickets = await Ticket.find({
+                _id: { $in: ticketIds }
+            });
+
+            const totalRevenue = tickets.reduce((sum, ticket) => sum + ticket.total_amount, 0);
+
+            res.json({
+                date: `${day}/${month}/${year}`,
+                totalRevenue,
+                paymentCount: payments.length,
+                ticketCount: tickets.length
+            });
+        } catch (error) {
+            res.status(500).json({ message: error.message });
+        }
+    },
 
 };
 
