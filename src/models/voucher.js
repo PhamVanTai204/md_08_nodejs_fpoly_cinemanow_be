@@ -6,6 +6,12 @@ const voucherSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
+    //Thiếu user_id trong voucher nếu không có thì ko xác định được ai là người chọn voucher , ai là người tạo voucher
+    // user_id: {
+    //     type: mongoose.Schema.Types.ObjectId,
+    //     ref: 'User',
+    //     required: true
+    // },
     voucher_value: {
         type: Number,
         required: true
