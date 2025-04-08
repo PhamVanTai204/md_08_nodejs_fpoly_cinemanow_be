@@ -178,6 +178,7 @@ exports.getCinemasByMovie = async (req, res) => {
                                 st.cinema_id._id.toString() === cinema._id.toString())
                             .map(st => ({
                                 showtime_id: st.showtime_id,
+                                room_id: st.room_id,
                                 start_time: st.start_time,
                                 end_time: st.end_time,
                                 show_date: st.show_date
@@ -377,11 +378,13 @@ exports.getSeatsByRoom = async (req, res) => {
         const formattedSeats = seats.map(seat => ({
             _id: seat._id,
             seat_id: seat.seat_id,
+            room_id: seat.room_id,
             seat_type: seat.seat_type,
             seat_status: seat.seat_status,
-            price: seat.price_seat,
-            row: seat.row_of_seat,
-            column: seat.column_of_seat
+            price_seat: seat.price_seat,
+            row_of_seat: seat.row_of_seat,
+            column_of_seat: seat.column_of_seat,
+            room_id: seat.room_id
         }));
 
         res.json(createResponse(200, null, formattedSeats));

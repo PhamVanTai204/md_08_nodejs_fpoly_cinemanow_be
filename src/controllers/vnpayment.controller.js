@@ -50,7 +50,7 @@ exports.createPaymentUrl = async (req, res) => {
             vnp_TxnRef: orderId,
             vnp_OrderInfo: orderInfo,
             vnp_OrderType: ProductCode.Other,
-            vnp_ReturnUrl: 'https://domain.vn/VnPayReturn',
+            vnp_ReturnUrl: 'http://localhost:4200/confirmVNPay',
             vnp_Locale: VnpLocale.VN,
         });
 
@@ -61,7 +61,7 @@ exports.createPaymentUrl = async (req, res) => {
                 amount: amount,
                 id: orderId,
                 orderInfo: orderInfo,
-                returnUrl: 'https://domain.vn/VnPayReturn',
+                returnUrl: 'http://localhost:4200/confirmVNPay',
             }, // Tạo đối tượng order để trả về
         });
     } catch (error) {
