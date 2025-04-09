@@ -68,17 +68,23 @@ exports.getShowTimesByMovieId = async (req, res) => {
         res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách suất chiếu theo phim', null));
     }
 };
+function generateShowTimeId() {
+    const random = Math.random().toString(36).substr(2, 5).toUpperCase(); // VD: "9A7C1"
+    return `ST${random}`;
+}
 
 // Tạo suất chiếu mới
 exports.createShowTime = async (req, res) => {
     try {
-        const { showtime_id, movie_id, room_id, cinema_id, start_time, end_time, show_date } = req.body;
+        const { movie_id, room_id, cinema_id, start_time, end_time, show_date } = req.body;
+
+        // Tự động sinh showtime_id
+        const showtime_id = generateShowTimeId();
 
         // Kiểm tra đầy đủ thông tin
-        if (!showtime_id || !movie_id || !room_id || !cinema_id || !start_time || !end_time || !show_date) {
+        if (!movie_id || !room_id || !cinema_id || !start_time || !end_time || !show_date) {
             return res.status(400).json(createResponse(400, 'Vui lòng cung cấp đầy đủ thông tin', null));
         }
-
         // Kiểm tra showtime_id đã tồn tại
         const existingShowTime = await ShowTime.findOne({ showtime_id });
         if (existingShowTime) {
@@ -90,7 +96,7 @@ exports.createShowTime = async (req, res) => {
         try {
             const [day, month, year] = show_date.split('/');
             formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-            
+
             // Kiểm tra ngày hợp lệ
             if (!isValidDate(formattedDate)) {
                 return res.status(400).json(createResponse(400, 'Ngày tháng không hợp lệ', null));
@@ -146,7 +152,16 @@ function isValidDate(dateString) {
 // Cập nhật suất chiếu
 exports.updateShowTime = async (req, res) => {
     try {
-        const { start_time, end_time, show_date } = req.body;
+        const {
+            showtime_id,
+            movie_id,
+            room_id,
+            cinema_id,
+            start_time,
+            end_time,
+            show_date
+        } = req.body;
+
         const id = req.params.id;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -158,21 +173,29 @@ exports.updateShowTime = async (req, res) => {
             return res.status(404).json(createResponse(404, 'Không tìm thấy suất chiếu', null));
         }
 
+        // Cập nhật các trường nếu được truyền lên
+        if (showtime_id) showTime.showtime_id = showtime_id;
+        if (movie_id) showTime.movie_id = movie_id;
+        if (room_id) showTime.room_id = room_id;
+        if (cinema_id) showTime.cinema_id = cinema_id;
         if (start_time) showTime.start_time = start_time;
         if (end_time) showTime.end_time = end_time;
         if (show_date) showTime.show_date = show_date;
 
         const updatedShowTime = await showTime.save();
-        const populatedShowTime = await ShowTime.findById(updatedShowTime._id)
-            .populate('movie_id')
-            .populate('room_id');
 
-        res.json(createResponse(200, 'Cập nhật suất chiếu thành công', populatedShowTime));
+        const populated = await ShowTime.findById(updatedShowTime._id)
+            .populate('movie_id')
+            .populate('room_id')
+            .populate('cinema_id');
+
+        res.json(createResponse(200, 'Cập nhật suất chiếu thành công', populated));
     } catch (error) {
         console.error('Update show time error:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi cập nhật suất chiếu', null));
     }
 };
+
 
 // Xóa suất chiếu
 exports.deleteShowTime = async (req, res) => {
@@ -223,14 +246,14 @@ exports.getShowTimesByMovieLocation = async (req, res) => {
             movie_id,
             room_id: { $in: roomIds }
         })
-        .populate('movie_id')
-        .populate({
-            path: 'room_id',
-            populate: {
-                path: 'cinema_id'
-            }
-        })
-        .sort({ start_time: 1 });
+            .populate('movie_id')
+            .populate({
+                path: 'room_id',
+                populate: {
+                    path: 'cinema_id'
+                }
+            })
+            .sort({ start_time: 1 });
 
         if (!showTimes.length) {
             return res.status(404).json(createResponse(404, 'Không tìm thấy suất chiếu tại địa điểm này', null));
