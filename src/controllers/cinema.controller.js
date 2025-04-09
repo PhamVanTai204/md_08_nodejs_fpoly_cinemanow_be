@@ -177,6 +177,7 @@ exports.getCinemasByMovie = async (req, res) => {
                             .filter(st => st.cinema_id &&
                                 st.cinema_id._id.toString() === cinema._id.toString())
                             .map(st => ({
+                                _id: st._id,
                                 showtime_id: st.showtime_id,
                                 room_id: st.room_id,
                                 start_time: st.start_time,
