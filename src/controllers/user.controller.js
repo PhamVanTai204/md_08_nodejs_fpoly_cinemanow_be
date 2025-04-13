@@ -72,7 +72,10 @@ exports.login = async (req, res) => {
       email: user.email,
       role: user.role,
       url_image: user.url_image,
-      token
+      token,
+      phone_number: user.phone_number ?? '',
+      date_of_birth: user.date_of_birth ?? '',
+      gender: user.gender !== undefined ? Number(user.gender) : null
     }));
   } catch (error) {
     return res.status(500).json(createResponse(500, 'Lỗi server', error.message));
@@ -324,7 +327,15 @@ exports.refreshToken = async (req, res) => {
 
 exports.updateProfile = async (req, res) => {
   const { userId } = req.params;
-  const { user_name, email, full_name, phone_number, date_of_birth, gender } = req.body;
+  const {
+    user_name,
+    email,
+    full_name,
+    phone_number,
+    date_of_birth,
+    gender,
+    url_image, // ✅ thêm url_image vào destructured body
+  } = req.body;
 
   if (!mongoose.Types.ObjectId.isValid(userId)) {
     return res.status(404).json(createResponse(404, 'ID người dùng không hợp lệ', null));
@@ -342,12 +353,13 @@ exports.updateProfile = async (req, res) => {
       full_name === undefined &&
       phone_number === undefined &&
       date_of_birth === undefined &&
-      gender === undefined
+      gender === undefined &&
+      url_image === undefined // ✅ thêm kiểm tra url_image
     ) {
       return res.status(200).json(createResponse(200, null, 'Không có trường nào được cập nhật'));
     }
 
-    // Cập nhật các trường
+    // ✅ Cập nhật các trường nếu có
     if (user_name !== undefined) user.user_name = user_name;
     if (email !== undefined) user.email = email;
     if (full_name !== undefined) user.full_name = full_name;
@@ -362,6 +374,7 @@ exports.updateProfile = async (req, res) => {
     }
 
     if (gender !== undefined) user.gender = gender;
+    if (url_image !== undefined) user.url_image = url_image; // ✅ Cập nhật ảnh đại diện mới
 
     await user.save();
 
@@ -373,23 +386,24 @@ exports.updateProfile = async (req, res) => {
 
 
 
+
 // Thêm vào file controller người dùng (nơi chứa các hàm login, reg, ...)
 
 // Đăng xuất
 exports.logout = async (req, res) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
-    
+
     if (!token) {
       return res.status(400).json(createResponse(400, 'Token không tồn tại', null));
     }
 
     // Lấy user từ middleware xác thực (giả sử req.user đã được set bởi middleware auth)
     const userId = req.user.userId;
-    
+
     // Tìm user và xóa token hiện tại khỏi mảng tokens
     const user = await User.findById(userId);
-    
+
     if (!user) {
       return res.status(404).json(createResponse(404, 'Không tìm thấy người dùng', null));
     }
@@ -409,10 +423,10 @@ exports.logoutAll = async (req, res) => {
   try {
     // Lấy user từ middleware xác thực
     const userId = req.user.userId;
-    
+
     // Tìm user và xóa tất cả token
     const user = await User.findById(userId);
-    
+
     if (!user) {
       return res.status(404).json(createResponse(404, 'Không tìm thấy người dùng', null));
     }
