@@ -24,4 +24,8 @@ router.put('/updatemuti', seatController.updateMultipleSeatsStatus);
 // Thêm nhiều ghế vào phòng
 router.post('/create-multiple', seatController.createMultipleSeats);
 
+// Routes mới cho chức năng realtime đặt vé
+router.post('/select-temporary', seatController.temporarySelectSeats);
+router.post('/release', seatController.releaseSeats);
+
 module.exports = router; 

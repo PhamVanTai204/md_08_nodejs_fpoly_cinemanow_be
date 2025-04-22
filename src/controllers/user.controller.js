@@ -7,6 +7,25 @@ const OTP = require('../models/otp.model'); // Import model OTP
 const createResponse = require('../utils/responseHelper');
 const mongoose = require('mongoose');
 const { getRoleName } = require('../utils/role_hepler');
+exports.deleteUser = async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json(createResponse(400, 'ID người dùng không hợp lệ', null));
+  }
+
+  try {
+    const user = await User.findByIdAndDelete(id);
+    if (!user) {
+      return res.status(404).json(createResponse(404, 'Không tìm thấy người dùng để xóa', null));
+    }
+
+    return res.status(200).json(createResponse(200, null, 'Xóa người dùng thành công'));
+  } catch (error) {
+    return res.status(500).json(createResponse(500, 'Lỗi server khi xóa người dùng', error.message));
+  }
+};
+
 exports.reg = async (req, res) => {
   const { user_name, email, password, url_image, role } = req.body;
 
@@ -241,6 +260,7 @@ exports.getUserById = async (req, res) => {
 };
 
 exports.getUsersByRole = async (req, res) => {
+  let { page, limit } = req.query;
   const { role } = req.params;
   const allowedRoles = [1, 2, 3];
 
@@ -253,19 +273,39 @@ exports.getUsersByRole = async (req, res) => {
     ));
   }
 
-  try {
-    const users = await User.find({ role: roleNum }, '-password');
+  // Xử lý phân trang
+  page = parseInt(page) || 1;
+  limit = parseInt(limit) || 10;
+  const skip = (page - 1) * limit;
 
+  try {
+    // Lấy danh sách user có role cụ thể, áp dụng phân trang
+    const users = await User.find({ role: roleNum }, '-password')
+      .skip(skip)
+      .limit(limit);
+
+    // Đếm tổng số user có role tương ứng
+    const totalUsers = await User.countDocuments({ role: roleNum });
+    const totalPages = Math.ceil(totalUsers / limit);
+
+    // Thêm role_name cho từng user
     const result = users.map(u => ({
       ...u.toObject(),
       role_name: getRoleName(u.role)
     }));
 
-    res.json(createResponse(200, null, result));
+    res.status(200).json(createResponse(200, null, {
+      users: result,
+      totalUsers,
+      totalPages,
+      currentPage: page,
+      pageSize: limit
+    }));
   } catch (error) {
     res.status(500).json(createResponse(500, 'Lỗi server', error.message));
   }
 };
+
 
 exports.getUserByEmail = async (req, res) => {
   const { email } = req.params;

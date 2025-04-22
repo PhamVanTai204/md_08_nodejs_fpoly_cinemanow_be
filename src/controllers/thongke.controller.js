@@ -3,6 +3,124 @@ const Payment = require('../models/payment');
 const mongoose = require('mongoose');
 
 const revenueController = {
+    // Get revenue by cinema
+    getRevenueByMovie: async (req, res) => {
+        try {
+            const { startDate, endDate } = req.query;
+
+            if (!startDate || !endDate) {
+                return res.status(400).json({ message: 'Start date and end date are required' });
+            }
+
+            const payments = await Payment.find({
+                payment_time: {
+                    $gte: new Date(startDate),
+                    $lte: new Date(endDate)
+                },
+                status_order: 'completed'
+            }).populate({
+                path: 'ticket_id',
+                populate: {
+                    path: 'showtime_id',
+                    populate: {
+                        path: 'movie_id'
+                    }
+                }
+            });
+
+            const movieStats = {};
+
+            payments.forEach(payment => {
+                const ticket = payment.ticket_id;
+                const showtime = ticket?.showtime_id;
+                const movie = showtime?.movie_id;
+
+                if (movie) {
+                    const movieId = movie._id.toString();
+                    if (!movieStats[movieId]) {
+                        movieStats[movieId] = {
+                            movie,
+                            revenue: 0,
+                            ticketCount: 0
+                        };
+                    }
+                    movieStats[movieId].revenue += ticket.total_amount;
+                    movieStats[movieId].ticketCount += 1;
+                }
+            });
+
+            const result = Object.values(movieStats);
+
+            const totalRevenue = result.reduce((sum, m) => sum + m.revenue, 0);
+
+            res.json({
+                dateRange: { startDate, endDate },
+                totalRevenue,
+                movieStats: result
+            });
+        } catch (error) {
+            res.status(500).json({ message: error.message });
+        }
+    },
+    getRevenueByCinema: async (req, res) => {
+        try {
+            const { startDate, endDate } = req.query;
+
+            if (!startDate || !endDate) {
+                return res.status(400).json({ message: 'Start date and end date are required' });
+            }
+
+            // Lấy danh sách payment đã hoàn thành trong khoảng thời gian
+            const payments = await Payment.find({
+                payment_time: {
+                    $gte: new Date(startDate),
+                    $lte: new Date(endDate)
+                },
+                status_order: 'completed'
+            }).populate({
+                path: 'ticket_id',
+                populate: {
+                    path: 'showtime_id',
+                    populate: { path: 'cinema_id' } // Populate cinema trong showtime
+                }
+            });
+
+            // Lọc các vé đã thanh toán hợp lệ
+            const ticketIds = payments.map(p => p.ticket_id?._id).filter(id => id);
+            const tickets = await Ticket.find({ _id: { $in: ticketIds } })
+                .populate({
+                    path: 'showtime_id',
+                    populate: { path: 'cinema_id' }
+                });
+
+            // Group theo cinema
+            const cinemas = {};
+            tickets.forEach(ticket => {
+                const cinema = ticket?.showtime_id?.cinema_id;
+                const cinemaId = cinema?._id?.toString();
+                if (cinemaId) {
+                    if (!cinemas[cinemaId]) {
+                        cinemas[cinemaId] = {
+                            cinema: cinema,
+                            revenue: 0,
+                            ticketCount: 0
+                        };
+                    }
+                    cinemas[cinemaId].revenue += ticket.total_amount;
+                    cinemas[cinemaId].ticketCount += 1;
+                }
+            });
+
+            res.json({
+                dateRange: { startDate, endDate },
+                totalRevenue: Object.values(cinemas).reduce((sum, c) => sum + c.revenue, 0),
+                cinemaStats: Object.values(cinemas)
+            });
+        } catch (error) {
+            res.status(500).json({ message: error.message });
+        }
+    },
+
     // Get revenue by date range
     getRevenueByDateRange: async (req, res) => {
         try {
