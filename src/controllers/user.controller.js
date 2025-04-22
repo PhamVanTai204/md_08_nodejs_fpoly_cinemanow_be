@@ -7,6 +7,25 @@ const OTP = require('../models/otp.model'); // Import model OTP
 const createResponse = require('../utils/responseHelper');
 const mongoose = require('mongoose');
 const { getRoleName } = require('../utils/role_hepler');
+exports.deleteUser = async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json(createResponse(400, 'ID người dùng không hợp lệ', null));
+  }
+
+  try {
+    const user = await User.findByIdAndDelete(id);
+    if (!user) {
+      return res.status(404).json(createResponse(404, 'Không tìm thấy người dùng để xóa', null));
+    }
+
+    return res.status(200).json(createResponse(200, null, 'Xóa người dùng thành công'));
+  } catch (error) {
+    return res.status(500).json(createResponse(500, 'Lỗi server khi xóa người dùng', error.message));
+  }
+};
+
 exports.reg = async (req, res) => {
   const { user_name, email, password, url_image, role } = req.body;
 

@@ -23,5 +23,5 @@ router.post('/logout', auth, uc.logout);
 // Route đăng xuất tất cả thiết bị
 router.post('/logout-all', auth, uc.logoutAll);
 
-
+router.delete('/deleteUser/:id', uc.deleteUser);
 module.exports = router;

@@ -12,7 +12,7 @@ const seatSchema = new mongoose.Schema({
     },
     seat_status: {
         type: String,
-        enum: ['available', 'booked', 'unavailable'],
+        enum: ['available', 'booked', 'unavailable', 'selecting'],
         default: 'available',
         required: true
     },
@@ -33,6 +33,14 @@ const seatSchema = new mongoose.Schema({
     row_of_seat: {
         type: String,
         required: true
+    },
+    selected_by: {
+        type: String, // Lưu ID của người dùng đang chọn ghế
+        default: null
+    },
+    selection_time: {
+        type: Date, // Thời gian bắt đầu chọn ghế
+        default: null
     }
 }, {
     timestamps: true
