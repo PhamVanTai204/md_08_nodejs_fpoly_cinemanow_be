@@ -1,7 +1,13 @@
 //const vnpay = require('../config/vnpayConfig.js');
-const { ProductCode, VnpLocale, dateFormat, consoleLogger } = require('vnpay');
+const { ProductCode, VnpLocale, dateFormat, consoleLogger, IpnFailChecksum,
+    IpnOrderNotFound,
+    IpnInvalidAmount,
+    InpOrderAlreadyConfirmed,
+    IpnUnknownError,
+    IpnSuccess } = require('vnpay');
 const { VNPay, ignoreLogger } = require('vnpay');
-
+const Ticket = require('../models/ticket');
+const Payment = require('../models/payment');
 const vnpay = new VNPay({
     tmnCode: 'HKN8S09W', // Mã TMN do VNPay cấp
     secureSecret: 'X3K9G4X8MJR4XGHMNR6YVUNUYIFJ9CPA', // Chuỗi bí mật bảo mật
@@ -37,7 +43,32 @@ tomorrow.setDate(tomorrow.getDate() + 1);
 exports.createPaymentUrl = async (req, res) => {
     try {
         // Lấy dữ liệu từ body của request
-        const { amount, orderId, orderInfo } = req.body;
+        const { ticket_id, amount } = req.body;
+        // Kiểm tra vé tồn tại và chưa thanh toán
+        const ticket = await Ticket.findOne({
+            _id: ticket_id,
+            status: 'pending'
+        });
+
+        if (!ticket) {
+            return res.status(400).json({
+                success: false,
+                message: 'Ticket not found or already processed'
+            });
+        }
+        // Tạo payment_id duy nhất
+        const payment_id = 'PAY' + Date.now();
+
+        // Tạo payment record
+        const payment = await Payment.create({
+            payment_id,
+            ticket_id: ticket._id,
+            payment_method: 1, // 1 = VNPay
+            status_order: 'pending',
+            amount: amount
+        });
+        const expireDate = new Date(Date.now() + 15 * 60 * 1000); // 15 phút hết hạn
+        const formattedExpireDate = dateFormat(expireDate, 'yyyyMMddHHmmss');
 
         // Tạo URL thanh toán
         const paymentUrl = vnpay.buildPaymentUrl({
@@ -47,20 +78,20 @@ exports.createPaymentUrl = async (req, res) => {
                 req.connection.remoteAddress ||
                 req.socket.remoteAddress ||
                 req.ip,
-            vnp_TxnRef: orderId,
-            vnp_OrderInfo: orderInfo,
+            vnp_TxnRef: payment._id.toString(),
+            vnp_OrderInfo: `Thanh toan ve xem phim #${ticket.ticket_id}`,
             vnp_OrderType: ProductCode.Other,
             vnp_ReturnUrl: 'http://localhost:4200/confirmVNPay',
             vnp_Locale: VnpLocale.VN,
+            vnp_ExpireDate: formattedExpireDate
         });
 
         return res.json({
             success: true,
             paymentUrl,
-            order: {
-                amount: amount,
-                id: orderId,
-                orderInfo: orderInfo,
+            payment: {
+                payment,
+                orderInfo: `Thanh toan ve xem phim #${ticket.ticket_id}`,
                 returnUrl: 'http://localhost:4200/confirmVNPay',
             }, // Tạo đối tượng order để trả về
         });
@@ -70,5 +101,60 @@ exports.createPaymentUrl = async (req, res) => {
             message: 'Lỗi khi tạo URL thanh toán VNPAY',
             error: error.message,
         });
+    }
+};
+exports.handleVNPayIpn = async (req, res) => {
+    try {
+        const verify = vnpay.verifyIpnCall(req.query);
+        if (!verify.isVerified) {
+            return res.json(IpnFailChecksum);
+        }
+
+        // Lấy payment từ database
+        const payment = await Payment.findById(verify.vnp_TxnRef);
+
+        if (!payment) {
+            return res.json(IpnOrderNotFound);
+        }
+        // Nếu số tiền thanh toán không khớp
+        if (verify.vnp_Amount !== payment.amount) {
+            return res.json(IpnInvalidAmount);
+        }
+        // Nếu payment đã completed trước đó
+        if (payment.status_order === 'completed') {
+            return res.json(InpOrderAlreadyConfirmed);
+        }
+        payment.vnp_TransactionNo = verify.vnp_TransactionNo;
+        payment.vnp_ResponseCode = verify.vnp_ResponseCode;
+        payment.vnp_BankCode = verify.vnp_BankCode;
+        payment.vnp_PayDate = new Date(verify.vnp_PayDate);
+
+        if (verify.isSuccess) {
+            payment.status_order = 'completed';
+
+            // Cập nhật trạng thái ticket
+            await Ticket.findByIdAndUpdate(payment.ticket_id, {
+                status: 'confirmed'
+            });
+        } else {
+            payment.status_order = 'failed';
+        }
+
+
+        /**
+         * Sau khi xác thực đơn hàng thành công,
+         * bạn có thể cập nhật trạng thái đơn hàng trong cơ sở dữ liệu
+         */
+        await payment.save(); // Hàm cập nhật trạng thái đơn hàng, bạn cần tự triển khai
+
+        // Sau đó cập nhật trạng thái trở lại cho VNPay để họ biết bạn đã xác nhận đơn hàng
+        return res.json(IpnSuccess);
+    } catch (error) {
+        /**
+         * Xử lý các ngoại lệ
+         * Ví dụ: dữ liệu không đủ, dữ liệu không hợp lệ, lỗi cập nhật cơ sở dữ liệu
+         */
+        console.log(`verify error: ${error}`);
+        return res.json(IpnUnknownError);
     }
 };

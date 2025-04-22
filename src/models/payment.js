@@ -11,27 +11,37 @@ const paymentSchema = new mongoose.Schema({
         ref: 'Ticket',
         required: true
     },
-    payment_method_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'PaymentMethod',
+    payment_method: {
+        type: Number,      // 0 = tiền mặt, 1 = chuyển khoản
         required: true
     },
-    payment_status_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'PaymentStatus',
-        required: true
-    },
-    payment_time: {
-        type: Date,
-        default: Date.now
-    },
+
     status_order: {
         type: String,
-        enum: ['pending', 'processing', 'completed', 'failed', 'cancelled'],
+        enum: ['pending', 'completed', 'failed', 'cancelled'],
         default: 'pending'
+    },
+
+    // Các trường từ VNPay callback
+    vnp_TransactionNo: {
+        type: String,
+        default: null
+    },
+    vnp_ResponseCode: {
+        type: String,
+        default: null
+    },
+    vnp_BankCode: {
+        type: String,
+        default: null
+    },
+    vnp_PayDate: {
+        type: Date, // hoặc chuyển thành Date nếu bạn muốn parse về dạng chuẩn
+        default: null
     }
+
 }, {
     timestamps: true
 });
 
-module.exports = mongoose.model('Payment', paymentSchema); 
+module.exports = mongoose.model('Payment', paymentSchema);
