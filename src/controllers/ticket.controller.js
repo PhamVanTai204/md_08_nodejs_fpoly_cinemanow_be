@@ -274,4 +274,73 @@ exports.bookTicket = async (req, res) => {
             data: null
         });
     }
-}; 
+};
+exports.addTicket = async (req, res) => {
+    try {
+        const { user_id, showtime_id, seats, combos, voucher_id, total_amount } = req.body;
+
+        // Kiểm tra đầy đủ thông tin
+        if (!user_id || !showtime_id || !seats || !total_amount) {
+            return res.status(400).json(createResponse(400, 'Vui lòng cung cấp đầy đủ thông tin', null));
+        }
+
+        // Tạo mã vé ngẫu nhiên
+        const ticket_id = 'TIX' + Date.now() + Math.random().toString(36).substring(2, 10).toUpperCase();
+
+        // Kiểm tra ticket_id đã tồn tại
+        const existingTicket = await Ticket.findOne({ ticket_id });
+        if (existingTicket) {
+            return res.status(400).json(createResponse(400, 'Mã vé đã tồn tại', null));
+        }
+
+        // Kiểm tra user tồn tại
+        if (!mongoose.Types.ObjectId.isValid(user_id)) {
+            return res.status(400).json(createResponse(400, 'ID người dùng không hợp lệ', null));
+        }
+
+        // Kiểm tra showtime tồn tại
+        if (!mongoose.Types.ObjectId.isValid(showtime_id)) {
+            return res.status(400).json(createResponse(400, 'ID suất chiếu không hợp lệ', null));
+        }
+
+        // Kiểm tra combo tồn tại nếu có
+        if (combos && combos.length > 0) {
+            for (const combo of combos) {
+                if (!mongoose.Types.ObjectId.isValid(combo.combo_id)) {
+                    return res.status(400).json(createResponse(400, 'ID combo không hợp lệ', null));
+                }
+                if (!combo.quantity || combo.quantity < 1) {
+                    return res.status(400).json(createResponse(400, 'Số lượng combo phải lớn hơn 0', null));
+                }
+            }
+        }
+
+        // Kiểm tra voucher tồn tại nếu có
+        if (voucher_id && !mongoose.Types.ObjectId.isValid(voucher_id)) {
+            return res.status(400).json(createResponse(400, 'ID voucher không hợp lệ', null));
+        }
+
+        const newTicket = new Ticket({
+            ticket_id,
+            user_id,
+            showtime_id,
+            seats,
+            combos: combos || [],
+            voucher_id,
+            total_amount
+        });
+
+        const savedTicket = await newTicket.save();
+        const populatedTicket = await Ticket.findById(savedTicket._id)
+            .populate('user_id')
+            .populate('showtime_id')
+            .populate('seats.seat_id')
+            .populate('combos.combo_id')
+            .populate('voucher_id');
+
+        res.status(201).json(createResponse(201, 'Thêm vé thành công', populatedTicket));
+    } catch (error) {
+        console.error('Add ticket error:', error);
+        res.status(500).json(createResponse(500, 'Lỗi khi thêm vé', null));
+    }
+};

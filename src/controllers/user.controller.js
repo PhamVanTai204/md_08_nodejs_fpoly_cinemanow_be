@@ -384,7 +384,7 @@ exports.updateProfile = async (req, res) => {
   }
 };
 
-
+ 
 
 
 // Thêm vào file controller người dùng (nơi chứa các hàm login, reg, ...)
@@ -438,6 +438,7 @@ exports.logoutAll = async (req, res) => {
     res.json(createResponse(200, null, 'Đăng xuất khỏi tất cả thiết bị thành công'));
   } catch (error) {
     res.status(500).json(createResponse(500, 'Lỗi server', error.message));
+ 
   }
 };
 
