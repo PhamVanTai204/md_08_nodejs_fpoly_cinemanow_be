@@ -6,6 +6,10 @@ var logger = require('morgan');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors'); // Chỉ khai báo một lần!
+const bodyParser = require('body-parser');
+const cron = require('node-cron');
+const Seat = require('./src/models/seat');
+const pusher = require('./src/utils/pusher');
 
 // Load environment variables
 dotenv.config();
@@ -65,6 +69,62 @@ app.use('/payment-methods', paymentMethodRouter); // Định nghĩa tiền tố 
 app.use('/payment-statuses', paymentStatusRouter); // Định nghĩa tiền tố URL cho payment status
 app.use('/reviews', reviewRouter); // Định nghĩa tiền tố URL cho review
 app.use('/transactions', transactionRouter); // Định nghĩa tiền tố URL cho transaction
+
+// Kết nối MongoDB
+mongoose.connect(process.env.DB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log('Kết nối MongoDB thành công'))
+  .catch(err => console.error('Lỗi kết nối MongoDB:', err));
+
+// Setup cron job để tự động giải phóng ghế bị stuck
+cron.schedule('*/5 * * * *', async () => {
+  console.log('Đang chạy cron job giải phóng ghế bị stuck...');
+  try {
+    const timeThreshold = new Date(Date.now() - 10 * 60 * 1000); // 10 phút trước
+    
+    // Tìm tất cả ghế đang ở trạng thái selecting và quá thời gian
+    const stuckSeats = await Seat.find({
+      seat_status: 'selecting',
+      selection_time: { $lt: timeThreshold }
+    });
+    
+    if (stuckSeats.length > 0) {
+      console.log(`Tìm thấy ${stuckSeats.length} ghế bị stuck, đang giải phóng...`);
+      
+      // Nhóm ghế theo phòng để gửi thông báo Pusher
+      const seatsByRoom = {};
+      stuckSeats.forEach(seat => {
+        const roomId = seat.room_id.toString();
+        if (!seatsByRoom[roomId]) {
+          seatsByRoom[roomId] = [];
+        }
+        seatsByRoom[roomId].push(seat.seat_id);
+      });
+      
+      // Cập nhật trạng thái ghế về available
+      await Seat.updateMany(
+        { _id: { $in: stuckSeats.map(seat => seat._id) } },
+        { 
+          seat_status: 'available',
+          selected_by: null,
+          selection_time: null
+        }
+      );
+      
+      // Gửi thông báo qua Pusher cho từng phòng
+      for (const roomId in seatsByRoom) {
+        pusher.trigger(`room-${roomId}`, 'seats-released', {
+          seat_ids: seatsByRoom[roomId],
+          status: 'available'
+        });
+        console.log(`Đã gửi thông báo giải phóng ${seatsByRoom[roomId].length} ghế cho phòng ${roomId}`);
+      }
+    } else {
+      console.log('Không tìm thấy ghế nào bị stuck');
+    }
+  } catch (error) {
+    console.error('Lỗi khi giải phóng ghế bị stuck:', error);
+  }
+});
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

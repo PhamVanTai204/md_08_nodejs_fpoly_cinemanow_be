@@ -49,7 +49,7 @@ exports.getTransactionsByUser = async (req, res) => {
             const payment = paymentMap.get(ticket._id.toString());
             const seats = ticket.seats.map(seat => seat.seat_id.seat_id).join(', ');
             const combos = ticket.combos.map(combo => 
-                `${combo.combo_id.name} x${combo.quantity}`
+                `${combo.combo_id.name_combo} x${combo.quantity}`
             ).join(', ');
 
             return {
