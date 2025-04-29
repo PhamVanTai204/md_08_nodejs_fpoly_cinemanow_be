@@ -108,10 +108,8 @@ exports.handleVNPayIpn = async (req, res) => {
         if (!verify.isVerified) {
             return res.json(IpnFailChecksum);
         }
-
         // Lấy payment từ database
         const payment = await Payment.findById(verify.vnp_TxnRef);
-
         if (!payment) {
             return res.json(IpnOrderNotFound);
         }
@@ -131,8 +129,15 @@ exports.handleVNPayIpn = async (req, res) => {
         payment.vnp_TransactionNo = verify.vnp_TransactionNo;
         payment.vnp_ResponseCode = verify.vnp_ResponseCode;
         payment.vnp_BankCode = verify.vnp_BankCode;
-        payment.vnp_PayDate = new Date(verify.vnp_PayDate);
-
+        const payDateStr = verify.vnp_PayDate; // "20250424210435"
+        const payDate = new Date(
+            payDateStr.substring(0, 4),          // year
+            parseInt(payDateStr.substring(4, 6)) - 1, // month (zero-based)
+            payDateStr.substring(6, 8),          // day
+            payDateStr.substring(8, 10),         // hour
+            payDateStr.substring(10, 12),        // minute
+            payDateStr.substring(12, 14)         // second
+        );
         if (verify.isSuccess) {
             payment.status_order = 'completed';
 

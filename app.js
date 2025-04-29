@@ -26,8 +26,6 @@ var voucherRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/vouch
 var comboRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/combo'); // Import routes combo
 var ticketRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/ticket'); // Import routes ticket
 var paymentRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/payment'); // Import routes payment
-var paymentMethodRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/paymentMethod'); // Import routes payment method
-var paymentStatusRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/paymentStatus'); // Import routes payment status
 var reviewRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/review'); // Import routes review
 var transactionRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/transaction'); // Import routes transaction
 
@@ -61,8 +59,7 @@ app.use('/vouchers', voucherRouter); // Định nghĩa tiền tố URL cho vouch
 app.use('/combos', comboRouter); // Định nghĩa tiền tố URL cho combo
 app.use('/tickets', ticketRouter); // Định nghĩa tiền tố URL cho ticket
 app.use('/payments', paymentRouter); // Định nghĩa tiền tố URL cho payment
-app.use('/payment-methods', paymentMethodRouter); // Định nghĩa tiền tố URL cho payment method
-app.use('/payment-statuses', paymentStatusRouter); // Định nghĩa tiền tố URL cho payment status
+
 app.use('/reviews', reviewRouter); // Định nghĩa tiền tố URL cho review
 app.use('/transactions', transactionRouter); // Định nghĩa tiền tố URL cho transaction
 

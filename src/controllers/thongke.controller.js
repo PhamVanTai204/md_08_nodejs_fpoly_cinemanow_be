@@ -3,7 +3,7 @@ const Payment = require('../models/payment');
 const mongoose = require('mongoose');
 
 const revenueController = {
-    // Get revenue by cinema
+    // Get revenue by movie
     getRevenueByMovie: async (req, res) => {
         try {
             const { startDate, endDate } = req.query;
@@ -13,7 +13,7 @@ const revenueController = {
             }
 
             const payments = await Payment.find({
-                payment_time: {
+                vnp_PayDate: {
                     $gte: new Date(startDate),
                     $lte: new Date(endDate)
                 },
@@ -50,7 +50,6 @@ const revenueController = {
             });
 
             const result = Object.values(movieStats);
-
             const totalRevenue = result.reduce((sum, m) => sum + m.revenue, 0);
 
             res.json({
@@ -62,6 +61,8 @@ const revenueController = {
             res.status(500).json({ message: error.message });
         }
     },
+
+    // Get revenue by cinema
     getRevenueByCinema: async (req, res) => {
         try {
             const { startDate, endDate } = req.query;
@@ -70,9 +71,8 @@ const revenueController = {
                 return res.status(400).json({ message: 'Start date and end date are required' });
             }
 
-            // Lấy danh sách payment đã hoàn thành trong khoảng thời gian
             const payments = await Payment.find({
-                payment_time: {
+                vnp_PayDate: {
                     $gte: new Date(startDate),
                     $lte: new Date(endDate)
                 },
@@ -81,40 +81,38 @@ const revenueController = {
                 path: 'ticket_id',
                 populate: {
                     path: 'showtime_id',
-                    populate: { path: 'cinema_id' } // Populate cinema trong showtime
+                    populate: { path: 'cinema_id' }
                 }
             });
 
-            // Lọc các vé đã thanh toán hợp lệ
-            const ticketIds = payments.map(p => p.ticket_id?._id).filter(id => id);
-            const tickets = await Ticket.find({ _id: { $in: ticketIds } })
-                .populate({
-                    path: 'showtime_id',
-                    populate: { path: 'cinema_id' }
-                });
+            const cinemaStats = {};
 
-            // Group theo cinema
-            const cinemas = {};
-            tickets.forEach(ticket => {
-                const cinema = ticket?.showtime_id?.cinema_id;
-                const cinemaId = cinema?._id?.toString();
-                if (cinemaId) {
-                    if (!cinemas[cinemaId]) {
-                        cinemas[cinemaId] = {
-                            cinema: cinema,
+            payments.forEach(payment => {
+                const ticket = payment.ticket_id;
+                const showtime = ticket?.showtime_id;
+                const cinema = showtime?.cinema_id;
+
+                if (cinema) {
+                    const cinemaId = cinema._id.toString();
+                    if (!cinemaStats[cinemaId]) {
+                        cinemaStats[cinemaId] = {
+                            cinema,
                             revenue: 0,
                             ticketCount: 0
                         };
                     }
-                    cinemas[cinemaId].revenue += ticket.total_amount;
-                    cinemas[cinemaId].ticketCount += 1;
+                    cinemaStats[cinemaId].revenue += ticket.total_amount;
+                    cinemaStats[cinemaId].ticketCount += 1;
                 }
             });
 
+            const result = Object.values(cinemaStats);
+            const totalRevenue = result.reduce((sum, c) => sum + c.revenue, 0);
+
             res.json({
                 dateRange: { startDate, endDate },
-                totalRevenue: Object.values(cinemas).reduce((sum, c) => sum + c.revenue, 0),
-                cinemaStats: Object.values(cinemas)
+                totalRevenue,
+                cinemaStats: result
             });
         } catch (error) {
             res.status(500).json({ message: error.message });
@@ -131,31 +129,29 @@ const revenueController = {
             }
 
             const payments = await Payment.find({
-                payment_time: {
+                vnp_PayDate: {
                     $gte: new Date(startDate),
                     $lte: new Date(endDate)
                 },
                 status_order: 'completed'
             }).populate('ticket_id');
 
-            const ticketIds = payments.map(payment => payment.ticket_id._id);
-            const tickets = await Ticket.find({
-                _id: { $in: ticketIds }
-            });
-
-            const totalRevenue = tickets.reduce((sum, ticket) => sum + ticket.total_amount, 0);
+            const totalRevenue = payments.reduce((sum, payment) => {
+                return sum + (payment.ticket_id?.total_amount || 0);
+            }, 0);
 
             res.json({
                 startDate,
                 endDate,
                 totalRevenue,
                 paymentCount: payments.length,
-                ticketCount: tickets.length
+                ticketCount: payments.length
             });
         } catch (error) {
             res.status(500).json({ message: error.message });
         }
     },
+
     // Get revenue by day
     getRevenueByDay: async (req, res) => {
         try {
@@ -169,30 +165,28 @@ const revenueController = {
             const endDate = new Date(year, month - 1, day, 23, 59, 59);
 
             const payments = await Payment.find({
-                payment_time: {
+                vnp_PayDate: {
                     $gte: startDate,
                     $lte: endDate
                 },
                 status_order: 'completed'
             }).populate('ticket_id');
 
-            const ticketIds = payments.map(payment => payment.ticket_id._id);
-            const tickets = await Ticket.find({
-                _id: { $in: ticketIds }
-            });
-
-            const totalRevenue = tickets.reduce((sum, ticket) => sum + ticket.total_amount, 0);
+            const totalRevenue = payments.reduce((sum, payment) => {
+                return sum + (payment.ticket_id?.total_amount || 0);
+            }, 0);
 
             res.json({
                 date: `${day}/${month}/${year}`,
                 totalRevenue,
                 paymentCount: payments.length,
-                ticketCount: tickets.length
+                ticketCount: payments.length
             });
         } catch (error) {
             res.status(500).json({ message: error.message });
         }
     },
+
     // Get revenue by month
     getRevenueByMonth: async (req, res) => {
         try {
@@ -206,31 +200,29 @@ const revenueController = {
             const endDate = new Date(year, month, 0, 23, 59, 59);
 
             const payments = await Payment.find({
-                payment_time: {
+                vnp_PayDate: {
                     $gte: startDate,
                     $lte: endDate
                 },
                 status_order: 'completed'
             }).populate('ticket_id');
 
-            const ticketIds = payments.map(payment => payment.ticket_id._id);
-            const tickets = await Ticket.find({
-                _id: { $in: ticketIds }
-            });
-
-            const totalRevenue = tickets.reduce((sum, ticket) => sum + ticket.total_amount, 0);
+            const totalRevenue = payments.reduce((sum, payment) => {
+                return sum + (payment.ticket_id?.total_amount || 0);
+            }, 0);
 
             res.json({
                 year,
                 month,
                 totalRevenue,
                 paymentCount: payments.length,
-                ticketCount: tickets.length
+                ticketCount: payments.length
             });
         } catch (error) {
             res.status(500).json({ message: error.message });
         }
     },
+
     // Get revenue by year
     getRevenueByYear: async (req, res) => {
         try {
@@ -244,28 +236,31 @@ const revenueController = {
             const endDate = new Date(year, 11, 31, 23, 59, 59);
 
             const payments = await Payment.find({
-                payment_time: {
+                vnp_PayDate: {
                     $gte: startDate,
                     $lte: endDate
                 },
                 status_order: 'completed'
             }).populate('ticket_id');
 
-            const totalRevenue = payments.reduce((sum, payment) => sum + payment.ticket_id.total_amount, 0);
+            const totalRevenue = payments.reduce((sum, payment) => {
+                return sum + (payment.ticket_id?.total_amount || 0);
+            }, 0);
 
             // Group by month
             const monthlyData = Array(12).fill(0).map((_, index) => {
                 const monthPayments = payments.filter(payment =>
-                    payment.payment_time.getMonth() === index
+                    payment.vnp_PayDate.getMonth() === index
                 );
 
-                const monthRevenue = monthPayments.reduce((sum, payment) => sum + payment.ticket_id.total_amount, 0);
+                const monthRevenue = monthPayments.reduce((sum, payment) =>
+                    sum + (payment.ticket_id?.total_amount || 0), 0);
 
                 return {
                     month: index + 1,
                     revenue: monthRevenue,
                     paymentCount: monthPayments.length,
-                    ticketCount: monthPayments.length // Assuming one payment corresponds to one ticket in this context
+                    ticketCount: monthPayments.length
                 };
             });
 
@@ -273,7 +268,7 @@ const revenueController = {
                 year,
                 totalRevenue,
                 paymentCount: payments.length,
-                ticketCount: payments.length, // Assuming one payment corresponds to one ticket
+                ticketCount: payments.length,
                 monthlyData
             });
         } catch (error) {
@@ -291,7 +286,7 @@ const revenueController = {
             }
 
             const payments = await Payment.find({
-                payment_time: {
+                vnp_PayDate: {
                     $gte: new Date(startDate),
                     $lte: new Date(endDate)
                 },
@@ -299,30 +294,33 @@ const revenueController = {
             }).populate({
                 path: 'ticket_id',
                 populate: [
-                    { path: 'showtime_id', populate: { path: 'movie_id' } },
+                    {
+                        path: 'showtime_id',
+                        populate: [
+                            { path: 'movie_id' },
+                            { path: 'cinema_id' }
+                        ]
+                    },
                     { path: 'user_id' }
                 ]
             });
 
-            const ticketIds = payments.map(payment => payment.ticket_id?._id).filter(id => id);
-            const tickets = await Ticket.find({
-                _id: { $in: ticketIds }
-            }).populate('seats.seat_id user_id showtime_id') // Populate showtime_id trước
-                .populate({ // Sau đó populate movie_id thông qua showtime_id
-                    path: 'showtime_id',
-                    populate: { path: 'movie_id' }
-                });
             // Calculate total revenue
-            const totalRevenue = tickets.reduce((sum, ticket) => sum + (ticket?.total_amount || 0), 0);
+            const totalRevenue = payments.reduce((sum, payment) => {
+                return sum + (payment.ticket_id?.total_amount || 0);
+            }, 0);
 
             // Group by movie
             const movies = {};
-            tickets.forEach(ticket => {
-                const movieId = ticket?.showtime_id?.movie_id?._id;
-                if (movieId) {
+            payments.forEach(payment => {
+                const ticket = payment.ticket_id;
+                const movie = ticket?.showtime_id?.movie_id;
+
+                if (movie) {
+                    const movieId = movie._id.toString();
                     if (!movies[movieId]) {
                         movies[movieId] = {
-                            movie: ticket.showtime_id.movie_id,
+                            movie,
                             revenue: 0,
                             ticketCount: 0
                         };
@@ -333,38 +331,33 @@ const revenueController = {
             });
 
             // Group by payment method
-            const paymentMethods = {};
+            const paymentMethods = {
+                '0': { method: 'Tiền mặt', revenue: 0, paymentCount: 0 },
+                '1': { method: 'Chuyển khoản', revenue: 0, paymentCount: 0 }
+            };
+
             payments.forEach(payment => {
-                const methodId = payment.payment_method_id?.toString();
-                if (methodId) {
-                    if (!paymentMethods[methodId]) {
-                        paymentMethods[methodId] = {
-                            methodId,
-                            revenue: 0,
-                            paymentCount: 0
-                        };
-                    }
-                    const ticket = tickets.find(t => t?._id?.equals(payment.ticket_id?._id));
-                    if (ticket) {
-                        paymentMethods[methodId].revenue += ticket.total_amount;
-                        paymentMethods[methodId].paymentCount += 1;
-                    }
+                const methodKey = payment.payment_method.toString();
+                if (paymentMethods[methodKey]) {
+                    paymentMethods[methodKey].revenue += payment.ticket_id?.total_amount || 0;
+                    paymentMethods[methodKey].paymentCount += 1;
                 }
             });
 
             // Get top users
             const users = {};
-            tickets.forEach(ticket => {
-                const userId = ticket?.user_id?._id?.toString();
-                if (userId) {
+            payments.forEach(payment => {
+                const user = payment.ticket_id?.user_id;
+                if (user) {
+                    const userId = user._id.toString();
                     if (!users[userId]) {
                         users[userId] = {
-                            user: ticket.user_id,
+                            user,
                             spending: 0,
                             ticketCount: 0
                         };
                     }
-                    users[userId].spending += ticket.total_amount;
+                    users[userId].spending += payment.ticket_id.total_amount;
                     users[userId].ticketCount += 1;
                 }
             });
@@ -377,7 +370,7 @@ const revenueController = {
                 dateRange: { startDate, endDate },
                 totalRevenue,
                 totalPayments: payments.length,
-                totalTickets: tickets.length,
+                totalTickets: payments.length,
                 movies: Object.values(movies),
                 paymentMethods: Object.values(paymentMethods),
                 topUsers
