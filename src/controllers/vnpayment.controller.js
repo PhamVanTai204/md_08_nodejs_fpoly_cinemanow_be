@@ -64,8 +64,7 @@ exports.createPaymentUrl = async (req, res) => {
             payment_id,
             ticket_id: ticket._id,
             payment_method: 1, // 1 = VNPay
-            status_order: 'pending',
-            amount: amount
+            status_order: 'pending'
         });
         const expireDate = new Date(Date.now() + 15 * 60 * 1000); // 15 phút hết hạn
         const formattedExpireDate = dateFormat(expireDate, 'yyyyMMddHHmmss');
@@ -109,15 +108,18 @@ exports.handleVNPayIpn = async (req, res) => {
         if (!verify.isVerified) {
             return res.json(IpnFailChecksum);
         }
-
         // Lấy payment từ database
         const payment = await Payment.findById(verify.vnp_TxnRef);
-
         if (!payment) {
             return res.json(IpnOrderNotFound);
         }
+        // Lấy ticket tương ứng để so sánh số tiền
+        const ticket = await Ticket.findById(payment.ticket_id);
+        if (!ticket) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy vé' });
+        }
         // Nếu số tiền thanh toán không khớp
-        if (verify.vnp_Amount !== payment.amount) {
+        if (verify.vnp_Amount !== ticket.total_amount) {
             return res.json(IpnInvalidAmount);
         }
         // Nếu payment đã completed trước đó
@@ -127,8 +129,15 @@ exports.handleVNPayIpn = async (req, res) => {
         payment.vnp_TransactionNo = verify.vnp_TransactionNo;
         payment.vnp_ResponseCode = verify.vnp_ResponseCode;
         payment.vnp_BankCode = verify.vnp_BankCode;
-        payment.vnp_PayDate = new Date(verify.vnp_PayDate);
-
+        const payDateStr = verify.vnp_PayDate; // "20250424210435"
+        const payDate = new Date(
+            payDateStr.substring(0, 4),          // year
+            parseInt(payDateStr.substring(4, 6)) - 1, // month (zero-based)
+            payDateStr.substring(6, 8),          // day
+            payDateStr.substring(8, 10),         // hour
+            payDateStr.substring(10, 12),        // minute
+            payDateStr.substring(12, 14)         // second
+        );
         if (verify.isSuccess) {
             payment.status_order = 'completed';
 
@@ -158,3 +167,73 @@ exports.handleVNPayIpn = async (req, res) => {
         return res.json(IpnUnknownError);
     }
 };
+exports.verifyPayment = async (req, res) => {
+    debugger
+    try {
+        const verify = vnpay.verifyReturnUrl(req.query);
+        if (!verify.isVerified) {
+            return res.status(400).json({ success: false, message: 'Sai checksum' });
+        }
+        console.log("Verify result:", verify);
+
+
+        const payment = await Payment.findById(verify.vnp_TxnRef);
+        if (!payment) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đơn thanh toán' });
+        }
+
+        // Lấy ticket tương ứng để so sánh số tiền
+        const ticket = await Ticket.findById(payment.ticket_id);
+        if (!ticket) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy vé' });
+        }
+
+
+        if (verify.vnp_Amount !== ticket.total_amount) {
+            return res.status(400).json({ success: false, message: 'Số tiền không khớp với ticket' });
+        }
+
+        // Nếu payment đã completed trước đó
+        if (payment.status_order === 'completed') {
+            return res.json({ success: true, message: 'Đã xác nhận thanh toán trước đó' });
+        }
+
+        // Gán thông tin từ VNPay
+        payment.vnp_TransactionNo = verify.vnp_TransactionNo;
+        payment.vnp_ResponseCode = verify.vnp_ResponseCode;
+        payment.vnp_BankCode = verify.vnp_BankCode;
+        const payDateStr = verify.vnp_PayDate; // "20250424210435"
+        const payDate = new Date(
+            payDateStr.substring(0, 4),          // year
+            parseInt(payDateStr.substring(4, 6)) - 1, // month (zero-based)
+            payDateStr.substring(6, 8),          // day
+            payDateStr.substring(8, 10),         // hour
+            payDateStr.substring(10, 12),        // minute
+            payDateStr.substring(12, 14)         // second
+        );
+        payment.vnp_PayDate = payDate;
+
+
+        if (verify.isSuccess) {
+            payment.status_order = 'completed';
+
+            // Cập nhật trạng thái vé
+            ticket.status = 'confirmed';
+            await ticket.save();
+        } else {
+            payment.status_order = 'failed';
+        }
+
+        await payment.save();
+
+        return res.json({
+            success: true,
+            message: 'Cập nhật thành công',
+            status: payment.status_order
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ success: false, message: 'Lỗi server' });
+    }
+};
+

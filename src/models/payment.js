@@ -23,15 +23,15 @@ const paymentSchema = new mongoose.Schema({
     },
 
     // Các trường từ VNPay callback
-    vnp_TransactionNo: {
+    vnp_TransactionNo: {// Mã giao dịch tại hệ thống VNPay.
         type: String,
         default: null
     },
-    vnp_ResponseCode: {
+    vnp_ResponseCode: {//Mã phản hồi kết quả thanh toán từ VNPay.
         type: String,
         default: null
     },
-    vnp_BankCode: {
+    vnp_BankCode: { // Mã ngân hàng khách hàng đã sử dụng để thanh toán.
         type: String,
         default: null
     },
