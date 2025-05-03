@@ -19,7 +19,7 @@ router.delete('/delete/:id', seatController.deleteSeat);
 router.delete('/deletemuti', seatController.deleteMultipleSeats);
 
 router.post('/addmuti', seatController.addMultipleSeats);
-router.put('/updatemuti', seatController.updateMultipleSeatsStatus);
+router.put('/updatemuti', seatController.updateMultipleSeatsInfo);
 
 // Thêm nhiều ghế vào phòng
 router.post('/create-multiple', seatController.createMultipleSeats);
