@@ -203,14 +203,18 @@ exports.verifyPayment = async (req, res) => {
         payment.vnp_ResponseCode = verify.vnp_ResponseCode;
         payment.vnp_BankCode = verify.vnp_BankCode;
         const payDateStr = verify.vnp_PayDate; // "20250424210435"
-        const payDate = new Date(
-            payDateStr.substring(0, 4),          // year
+        let payDate = new Date(
+            payDateStr.substring(0, 4),           // year
             parseInt(payDateStr.substring(4, 6)) - 1, // month (zero-based)
-            payDateStr.substring(6, 8),          // day
-            payDateStr.substring(8, 10),         // hour
-            payDateStr.substring(10, 12),        // minute
-            payDateStr.substring(12, 14)         // second
+            payDateStr.substring(6, 8),           // day
+            payDateStr.substring(8, 10),          // hour
+            payDateStr.substring(10, 12),         // minute
+            payDateStr.substring(12, 14)          // second
         );
+
+        // 👉 Chuyển sang giờ VN bằng cách cộng thêm 7 giờ
+        payDate = new Date(payDate.getTime() + 7 * 60 * 60 * 1000);
+
         payment.vnp_PayDate = payDate;
 
 
@@ -220,6 +224,57 @@ exports.verifyPayment = async (req, res) => {
             // Cập nhật trạng thái vé
             ticket.status = 'confirmed';
             await ticket.save();
+
+            // Lấy danh sách seat_ids từ ticket
+            const seatIds = ticket.seats.map(seat => seat.seat_id);
+
+            // Lấy room_id từ showtime vì ticket không có trực tiếp room_id
+            let roomId = null;
+            try {
+                const ShowTime = require('../models/showTime');
+                const showtime = await ShowTime.findById(ticket.showtime_id);
+                if (showtime) {
+                    roomId = showtime.room_id;
+                }
+            } catch (err) {
+                console.error("Lỗi khi lấy thông tin showtime:", err);
+            }
+
+            if (!roomId) {
+                console.error("Không thể lấy được room_id từ showtime");
+                return res.status(400).json({
+                    success: false,
+                    message: 'Không thể cập nhật ghế do thiếu thông tin phòng'
+                });
+            }
+
+            // Gọi hàm cập nhật trạng thái ghế thành "booked"
+            try {
+                const Seat = require('../models/seat');
+                const pusher = require('../utils/pusher');
+
+                // In ra log để xác định giá trị seatIds là gì
+                console.log("Thông tin seat_ids cần cập nhật:", seatIds);
+
+                // Cập nhật trạng thái ghế thành "booked" dựa trên _id thay vì seat_id
+                const updateResult = await Seat.updateMany(
+                    { _id: { $in: seatIds } },
+                    { seat_status: 'booked', selected_by: null, selection_time: null }
+                );
+
+                console.log(`Đã cập nhật ${updateResult.modifiedCount} ghế thành booked`);
+
+                // Gửi thông báo qua Pusher về việc cập nhật ghế
+                pusher.trigger(`room-${roomId}`, 'seats-booked', {
+                    seat_ids: seatIds,
+                    status: 'booked'
+                });
+            } catch (updateError) {
+                console.error("Lỗi khi cập nhật trạng thái ghế:", updateError);
+            }
+
+
+
         } else {
             payment.status_order = 'failed';
         }
