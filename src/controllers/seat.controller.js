@@ -450,15 +450,48 @@ exports.releaseSeats = async (req, res) => {
     const { seat_ids, room_id, user_id } = req.body;
 
     try {
-        if (!seat_ids || !Array.isArray(seat_ids) || seat_ids.length === 0 || !room_id) {
-            return res.status(400).json(createResponse(400, "Cần cung cấp danh sách seat_ids và room_id", null));
+        console.log("Yêu cầu giải phóng ghế:", { seat_ids, room_id, user_id });
+        
+        if (!seat_ids || !Array.isArray(seat_ids) || seat_ids.length === 0) {
+            return res.status(400).json(createResponse(400, "Cần cung cấp danh sách seat_ids", null));
         }
 
-        // Nếu có user_id, chỉ giải phóng ghế của user đó
-        const filterCondition = user_id 
-            ? { seat_id: { $in: seat_ids }, room_id, selected_by: user_id, seat_status: 'selecting' }
-            : { seat_id: { $in: seat_ids }, room_id, seat_status: 'selecting' };
+        if (!room_id) {
+            return res.status(400).json(createResponse(400, "Cần cung cấp room_id", null));
+        }
+
+        // Xác định điều kiện lọc linh hoạt hơn, hỗ trợ cả seat_id và _id
+        let filterCondition;
+        
+        // Trường hợp 1: Kiểm tra seat_ids có phải ObjectId (có thể là _id từ MongoDB)
+        if (seat_ids.every(id => mongoose.Types.ObjectId.isValid(id))) {
+            console.log("Sử dụng _id để tìm ghế");
             
+            // Nếu có user_id, chỉ giải phóng ghế của user đó
+            filterCondition = user_id 
+                ? { 
+                    $or: [
+                        { _id: { $in: seat_ids }, room_id, selected_by: user_id, seat_status: 'selecting' },
+                        { seat_id: { $in: seat_ids }, room_id, selected_by: user_id, seat_status: 'selecting' }
+                    ]
+                }
+                : { 
+                    $or: [
+                        { _id: { $in: seat_ids }, room_id, seat_status: 'selecting' },
+                        { seat_id: { $in: seat_ids }, room_id, seat_status: 'selecting' }
+                    ]
+                };
+        } else {
+            console.log("Sử dụng seat_id để tìm ghế");
+            
+            // Nếu có user_id, chỉ giải phóng ghế của user đó
+            filterCondition = user_id 
+                ? { seat_id: { $in: seat_ids }, room_id, selected_by: user_id, seat_status: 'selecting' }
+                : { seat_id: { $in: seat_ids }, room_id, seat_status: 'selecting' };
+        }
+        
+        console.log("Filter condition:", JSON.stringify(filterCondition));
+        
         // Cập nhật trạng thái trở lại 'available'
         const updateResult = await Seat.updateMany(
             filterCondition,
@@ -469,8 +502,12 @@ exports.releaseSeats = async (req, res) => {
             }
         );
         
+        console.log("Kết quả cập nhật:", updateResult);
+        
         if (updateResult.modifiedCount === 0) {
-            return res.status(404).json(createResponse(404, "Không tìm thấy ghế cần giải phóng", null));
+            // Nếu không tìm thấy ghế cần giải phóng, vẫn trả về thành công để không làm gián đoạn quy trình
+            console.log("Không tìm thấy ghế cần giải phóng với điều kiện đã cho");
+            return res.json(createResponse(200, "Không tìm thấy ghế cần giải phóng", null));
         }
         
         // Gửi thông báo qua Pusher

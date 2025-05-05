@@ -69,6 +69,19 @@ exports.createPaymentUrl = async (req, res) => {
         const expireDate = new Date(Date.now() + 15 * 60 * 1000); // 15 phút hết hạn
         const formattedExpireDate = dateFormat(expireDate, 'yyyyMMddHHmmss');
 
+        // Xác định Return URL dựa trên User-Agent của request
+        let returnUrl = 'http://localhost:4200/confirmVNPay'; // Default for web
+        
+        // Kiểm tra User-Agent để phát hiện mobile app
+        const userAgent = req.headers['user-agent'] || '';
+        if (userAgent.toLowerCase().includes('mobile') || req.query.platform === 'mobile') {
+            // URL ảo mà app mobile có thể xử lý, hoặc URL trên web mà webview mobile có thể xử lý
+            returnUrl = 'https://cinemanow.vn/payment-success';
+            console.log('Detected mobile client, using mobile return URL');
+        }
+
+        console.log(`Using return URL: ${returnUrl} for user agent: ${userAgent.substring(0, 50)}...`);
+
         // Tạo URL thanh toán
         const paymentUrl = vnpay.buildPaymentUrl({
             vnp_Amount: amount,
@@ -80,7 +93,7 @@ exports.createPaymentUrl = async (req, res) => {
             vnp_TxnRef: payment._id.toString(),
             vnp_OrderInfo: `Thanh toan ve xem phim #${ticket.ticket_id}`,
             vnp_OrderType: ProductCode.Other,
-            vnp_ReturnUrl: 'http://localhost:4200/confirmVNPay',
+            vnp_ReturnUrl: returnUrl,
             vnp_Locale: VnpLocale.VN,
             vnp_ExpireDate: formattedExpireDate
         });
@@ -91,7 +104,7 @@ exports.createPaymentUrl = async (req, res) => {
             payment: {
                 payment,
                 orderInfo: `Thanh toan ve xem phim #${ticket.ticket_id}`,
-                returnUrl: 'http://localhost:4200/confirmVNPay',
+                returnUrl: returnUrl,
             }, // Tạo đối tượng order để trả về
         });
     } catch (error) {
@@ -145,6 +158,42 @@ exports.handleVNPayIpn = async (req, res) => {
             await Ticket.findByIdAndUpdate(payment.ticket_id, {
                 status: 'confirmed'
             });
+            
+            // Cập nhật trạng thái ghế thành 'booked'
+            if (ticket.seats && ticket.seats.length > 0) {
+                const Seat = require('../models/seat');
+                
+                // Lấy danh sách ID ghế từ ticket
+                const seatIds = ticket.seats.map(seat => seat.seat_id);
+                
+                // Cập nhật trạng thái ghế thành 'booked'
+                await Seat.updateMany(
+                    { _id: { $in: seatIds } },
+                    { $set: { seat_status: 'booked', selected_by: null, selection_time: null } }
+                );
+                
+                console.log(`IPN: Đã cập nhật ${seatIds.length} ghế thành 'booked'`);
+                
+                // Thông báo qua Pusher về việc cập nhật trạng thái ghế
+                const pusher = require('../utils/pusher');
+                const showtime = await require('../models/showTime').findById(ticket.showtime_id);
+                
+                if (showtime && showtime.room_id) {
+                    // Lấy room_id từ showtime
+                    const roomId = showtime.room_id;
+                    
+                    // Gửi thông báo cập nhật nhiều ghế qua Pusher
+                    pusher.trigger(`room-${roomId}`, 'seat-status-changed', {
+                        type: 'multiple',
+                        data: {
+                            seat_ids: seatIds,
+                            status: 'booked'
+                        }
+                    });
+                    
+                    console.log(`IPN: Đã gửi thông báo Pusher để cập nhật trạng thái ghế cho phòng ${roomId}`);
+                }
+            }
         } else {
             payment.status_order = 'failed';
         }
@@ -168,7 +217,6 @@ exports.handleVNPayIpn = async (req, res) => {
     }
 };
 exports.verifyPayment = async (req, res) => {
-    debugger
     try {
         const verify = vnpay.verifyReturnUrl(req.query);
         if (!verify.isVerified) {
@@ -195,45 +243,103 @@ exports.verifyPayment = async (req, res) => {
 
         // Nếu payment đã completed trước đó
         if (payment.status_order === 'completed') {
-            return res.json({ success: true, message: 'Đã xác nhận thanh toán trước đó' });
+            return res.json({ success: true, message: 'Đã xác nhận thanh toán trước đó', status: 'completed' });
         }
 
-        // Gán thông tin từ VNPay
-        payment.vnp_TransactionNo = verify.vnp_TransactionNo;
-        payment.vnp_ResponseCode = verify.vnp_ResponseCode;
-        payment.vnp_BankCode = verify.vnp_BankCode;
-        const payDateStr = verify.vnp_PayDate; // "20250424210435"
-        const payDate = new Date(
-            payDateStr.substring(0, 4),          // year
-            parseInt(payDateStr.substring(4, 6)) - 1, // month (zero-based)
-            payDateStr.substring(6, 8),          // day
-            payDateStr.substring(8, 10),         // hour
-            payDateStr.substring(10, 12),        // minute
-            payDateStr.substring(12, 14)         // second
-        );
-        payment.vnp_PayDate = payDate;
-
-
-        if (verify.isSuccess) {
+        // Xử lý cập nhật khi thanh toán thành công
+        if (verify.vnp_ResponseCode === '00') {
             payment.status_order = 'completed';
+            payment.vnp_TransactionNo = verify.vnp_TransactionNo;
+            payment.vnp_BankCode = verify.vnp_BankCode;
+            payment.vnp_CardType = verify.vnp_CardType;
+            payment.vnp_PayDate = verify.vnp_PayDate;
+            payment.vnp_ResponseCode = verify.vnp_ResponseCode;
+            await payment.save();
 
             // Cập nhật trạng thái vé
             ticket.status = 'confirmed';
             await ticket.save();
-        } else {
-            payment.status_order = 'failed';
+
+            console.log("Đang cập nhật trạng thái ghế từ selecting thành booked...");
+            
+            // Lấy danh sách seat_ids từ ticket
+            const seatIds = ticket.seats.map(seat => seat.seat_id);
+            
+            // Lấy room_id từ showtime vì ticket không có trực tiếp room_id
+            let roomId = null;
+            try {
+                const ShowTime = require('../models/showTime');
+                const showtime = await ShowTime.findById(ticket.showtime_id);
+                if (showtime) {
+                    roomId = showtime.room_id;
+                }
+            } catch (err) {
+                console.error("Lỗi khi lấy thông tin showtime:", err);
+            }
+
+            if (!roomId) {
+                console.error("Không thể lấy được room_id từ showtime");
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Không thể cập nhật ghế do thiếu thông tin phòng'
+                });
+            }
+
+            // Gọi hàm cập nhật trạng thái ghế thành "booked"
+            try {
+                const Seat = require('../models/seat');
+                const pusher = require('../utils/pusher');
+                
+                // In ra log để xác định giá trị seatIds là gì
+                console.log("Thông tin seat_ids cần cập nhật:", seatIds);
+                
+                // Cập nhật trạng thái ghế thành "booked" dựa trên _id thay vì seat_id
+                const updateResult = await Seat.updateMany(
+                    { _id: { $in: seatIds } },
+                    { seat_status: 'booked', selected_by: null, selection_time: null }
+                );
+                
+                console.log(`Đã cập nhật ${updateResult.modifiedCount} ghế thành booked`);
+                
+                // Gửi thông báo qua Pusher về việc cập nhật ghế
+                pusher.trigger(`room-${roomId}`, 'seats-booked', {
+                    seat_ids: seatIds,
+                    status: 'booked'
+                });
+            } catch (updateError) {
+                console.error("Lỗi khi cập nhật trạng thái ghế:", updateError);
+            }
+
+            return res.json({
+                success: true, 
+                message: 'Thanh toán thành công', 
+                status: 'completed',
+                data: ticket
+            });
         }
 
+        // Lưu thông tin payment
         await payment.save();
 
-        return res.json({
-            success: true,
-            message: 'Cập nhật thành công',
-            status: payment.status_order
+        // Trả về kết quả
+        return res.json({ 
+            success: true, 
+            message: 'Thanh toán thất bại',
+            status: 'failed',
+            payment: {
+                id: payment._id,
+                status_order: payment.status_order,
+                payment_method: payment.payment_method,
+                ticket_id: payment.ticket_id
+            }
         });
-    } catch (err) {
-        console.error(err);
-        return res.status(500).json({ success: false, message: 'Lỗi server' });
+    } catch (error) {
+        console.error(`Lỗi khi xác thực thanh toán: ${error.message}`);
+        return res.status(500).json({ 
+            success: false, 
+            message: 'Lỗi server khi xác thực thanh toán',
+            error: error.message 
+        });
     }
 };
 
