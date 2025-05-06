@@ -103,12 +103,17 @@ exports.addCinema = async (req, res) => {
     }
 };
 
-// Cập nhật rạp phim
 exports.updateCinema = async (req, res) => {
     try {
+        const { cinema_name, location } = req.body;
+
+        const updateFields = {};
+        if (cinema_name !== undefined) updateFields.cinema_name = cinema_name;
+        if (location !== undefined) updateFields.location = location;
+
         const updatedCinema = await Cinema.findByIdAndUpdate(
             req.params.id,
-            req.body,
+            updateFields,
             { new: true, runValidators: true }
         );
 
@@ -121,6 +126,7 @@ exports.updateCinema = async (req, res) => {
         res.status(500).json(createResponse(500, 'Lỗi khi cập nhật rạp phim', error.message));
     }
 };
+
 
 // Xóa rạp phim
 exports.deleteCinema = async (req, res) => {
@@ -412,14 +418,14 @@ exports.getSeatsByRoomAndShowTime = async (req, res) => {
 
         // Lấy danh sách vé đã đặt cho suất chiếu này
         const Ticket = require('../models/ticket');
-        const bookedTickets = await Ticket.find({ 
+        const bookedTickets = await Ticket.find({
             showtime_id: showtime_id,
-            status: { $in: ['pending', 'completed'] } 
+            status: { $in: ['pending', 'completed'] }
         });
 
         // Danh sách ID ghế đã được đặt trong suất chiếu này
         const bookedSeatIds = new Set();
-        
+
         bookedTickets.forEach(ticket => {
             if (ticket.seats && Array.isArray(ticket.seats)) {
                 ticket.seats.forEach(seat => {
@@ -436,12 +442,12 @@ exports.getSeatsByRoomAndShowTime = async (req, res) => {
         const updatedSeats = seats.map(seat => {
             // Tạo bản sao ghế để tránh thay đổi trực tiếp đối tượng Mongoose
             const seatObj = seat.toObject();
-            
+
             // Nếu ghế này đã được đặt trong suất chiếu hiện tại
             if (bookedSeatIds.has(seat.seat_id)) {
                 seatObj.seat_status = 'booked';
             }
-            
+
             return seatObj;
         });
 
