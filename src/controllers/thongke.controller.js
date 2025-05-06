@@ -12,10 +12,14 @@ const revenueController = {
                 return res.status(400).json({ message: 'Start date and end date are required' });
             }
 
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+
             const payments = await Payment.find({
                 vnp_PayDate: {
-                    $gte: new Date(startDate),
-                    $lte: new Date(endDate)
+                    $gte: start,
+                    $lte: end
                 },
                 status_order: 'completed'
             }).populate({
@@ -71,10 +75,14 @@ const revenueController = {
                 return res.status(400).json({ message: 'Start date and end date are required' });
             }
 
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+
             const payments = await Payment.find({
                 vnp_PayDate: {
-                    $gte: new Date(startDate),
-                    $lte: new Date(endDate)
+                    $gte: start,
+                    $lte: end
                 },
                 status_order: 'completed'
             }).populate({
@@ -128,10 +136,14 @@ const revenueController = {
                 return res.status(400).json({ message: 'Start date and end date are required' });
             }
 
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+
             const payments = await Payment.find({
                 vnp_PayDate: {
-                    $gte: new Date(startDate),
-                    $lte: new Date(endDate)
+                    $gte: start,
+                    $lte: end
                 },
                 status_order: 'completed'
             }).populate('ticket_id');
@@ -162,7 +174,7 @@ const revenueController = {
             }
 
             const startDate = new Date(year, month - 1, day);
-            const endDate = new Date(year, month - 1, day, 23, 59, 59);
+            const endDate = new Date(year, month - 1, day, 23, 59, 59, 999);
 
             const payments = await Payment.find({
                 vnp_PayDate: {
@@ -197,7 +209,7 @@ const revenueController = {
             }
 
             const startDate = new Date(year, month - 1, 1);
-            const endDate = new Date(year, month, 0, 23, 59, 59);
+            const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
             const payments = await Payment.find({
                 vnp_PayDate: {
@@ -233,7 +245,7 @@ const revenueController = {
             }
 
             const startDate = new Date(year, 0, 1);
-            const endDate = new Date(year, 11, 31, 23, 59, 59);
+            const endDate = new Date(year, 11, 31, 23, 59, 59, 999);
 
             const payments = await Payment.find({
                 vnp_PayDate: {
@@ -285,10 +297,14 @@ const revenueController = {
                 return res.status(400).json({ message: 'Start date and end date are required' });
             }
 
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+
             const payments = await Payment.find({
                 vnp_PayDate: {
-                    $gte: new Date(startDate),
-                    $lte: new Date(endDate)
+                    $gte: start,
+                    $lte: end
                 },
                 status_order: 'completed'
             }).populate({

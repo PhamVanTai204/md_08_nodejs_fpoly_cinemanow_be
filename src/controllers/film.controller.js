@@ -31,23 +31,36 @@ exports.searchFilm = async (req, res) => {
 
 
 // Lấy danh sách phim
+
 exports.getFilm = async (req, res) => {
     try {
-        let { page, limit } = req.query;
+        let { page, limit, search } = req.query; // Thêm 'search' vào đây
 
         // Chuyển đổi giá trị thành số nguyên và đặt mặc định nếu không có giá trị
         page = parseInt(page) || 1;
         limit = parseInt(limit) || 10;
         const skip = (page - 1) * limit;
 
-        // Lấy danh sách phim với phân trang
-        const films = await Film.find()
+        // --- Phần thêm vào để lọc theo tên phim ---
+        const filter = {}; // Tạo đối tượng lọc rỗng ban đầu
+
+        if (search && search.trim() !== '') {
+            // Nếu có tham số 'search' và không phải là chuỗi rỗng
+            filter.title = { $regex: search.trim(), $options: 'i' };
+            // Sử dụng $regex để tìm kiếm không phân biệt chữ hoa chữ thường ($options: 'i')
+            // và tìm các phim có title chứa chuỗi 'search'
+        }
+        // --- Kết thúc phần thêm vào ---
+
+        // Lấy danh sách phim với phân trang VÀ lọc (nếu có)
+        const films = await Film.find(filter) // Áp dụng bộ lọc vào find()
             .populate('genre_film')
+            .sort({ release_date: -1 }) // Optional: Sắp xếp phim mới nhất lên đầu
             .skip(skip)
             .limit(limit);
 
-        // Đếm tổng số phim để tính tổng số trang
-        const totalFilms = await Film.countDocuments();
+        // Đếm tổng số phim khớp với bộ lọc để tính tổng số trang
+        const totalFilms = await Film.countDocuments(filter); // Áp dụng bộ lọc vào countDocuments()
         const totalPages = Math.ceil(totalFilms / limit);
 
         res.status(200).json(createResponse(200, null, {
@@ -58,9 +71,11 @@ exports.getFilm = async (req, res) => {
             pageSize: limit
         }));
     } catch (error) {
+        console.error("Error fetching films:", error); // Log lỗi chi tiết hơn ở server
         res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách phim', error.message));
     }
 };
+
 
 
 
