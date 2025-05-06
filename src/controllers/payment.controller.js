@@ -108,13 +108,6 @@ exports.getAllPayments = async (req, res) => {
         limit = parseInt(limit) || 10;
         const skip = (page - 1) * limit;
 
-        const matchStage = {};
-
-        if (search) {
-            matchStage['ticket_id.user_id.email'] = { $regex: search, $options: 'i' };
-        }
-
-        // Aggregation pipeline cho phép tìm theo nested field (user.email)
         const aggregate = Payment.aggregate([
             {
                 $lookup: {
@@ -136,6 +129,9 @@ exports.getAllPayments = async (req, res) => {
             { $unwind: '$ticket.user' },
             {
                 $match: search ? { 'ticket.user.email': { $regex: search, $options: 'i' } } : {}
+            },
+            {
+                $sort: { createdAt: -1 } // Sắp xếp từ mới nhất đến cũ nhất
             },
             {
                 $facet: {
@@ -168,5 +164,6 @@ exports.getAllPayments = async (req, res) => {
         res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách thanh toán', error.message));
     }
 };
+
 
 
