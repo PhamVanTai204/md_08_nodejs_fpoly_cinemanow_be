@@ -27,5 +27,6 @@ router.post('/create-multiple', seatController.createMultipleSeats);
 // Routes mới cho chức năng realtime đặt vé
 router.post('/select-temporary', seatController.temporarySelectSeats);
 router.post('/release', seatController.releaseSeats);
+router.post('/initiate-payment', seatController.initiatePayment);
 
 module.exports = router; 

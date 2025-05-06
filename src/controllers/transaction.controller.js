@@ -40,7 +40,7 @@ exports.getTransactionsByUser = async (req, res) => {
         const ticketIds = tickets.map(ticket => ticket._id);
         const payments = await Payment.find({
             ticket_id: { $in: ticketIds }
-        }).populate('payment_method_id');
+        }); // Không populate payment_method_id vì trường này không tồn tại trong schema
 
         const paymentMap = new Map(payments.map(p => [p.ticket_id.toString(), p]));
 
@@ -49,8 +49,18 @@ exports.getTransactionsByUser = async (req, res) => {
             const payment = paymentMap.get(ticket._id.toString());
             const seats = ticket.seats.map(seat => seat.seat_id.seat_id).join(', ');
             const combos = ticket.combos.map(combo => 
-                `${combo.combo_id.name} x${combo.quantity}`
+                `${combo.combo_id.name_combo || combo.combo_id.name || 'Combo không xác định'} x${combo.quantity}`
             ).join(', ');
+
+            // Xác định phương thức thanh toán dựa vào payment.payment_method
+            let paymentMethodName = 'Chưa thanh toán';
+            if (payment) {
+                if (payment.payment_method === 0) {
+                    paymentMethodName = 'Tiền mặt';
+                } else if (payment.payment_method === 1) {
+                    paymentMethodName = 'VNPay';
+                }
+            }
 
             return {
                 id: ticket._id,
@@ -66,7 +76,7 @@ exports.getTransactionsByUser = async (req, res) => {
                 total_amount: ticket.total_amount || 0,
                 booking_date: ticket.createdAt,
                 payment_status: payment ? payment.status_order : 'Chưa thanh toán',
-                payment_method: payment?.payment_method_id?.name || 'Chưa thanh toán'
+                payment_method: paymentMethodName
             };
         });
 

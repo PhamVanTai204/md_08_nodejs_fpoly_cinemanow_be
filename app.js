@@ -33,10 +33,19 @@ var bannerRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/banner
 
 var app = express();
 
+// Cấu hình CORS - Cho phép tất cả các nguồn, bao gồm cả mobile app
+app.use(cors({
+  origin: '*', // Cho phép tất cả các nguồn
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  credentials: true,
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+}));
+
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
-app.use(cors());
 app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
