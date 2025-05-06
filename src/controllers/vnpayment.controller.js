@@ -71,7 +71,7 @@ exports.createPaymentUrl = async (req, res) => {
 
         // Xác định Return URL dựa trên User-Agent của request
         let returnUrl = 'http://localhost:4200/confirmVNPay'; // Default for web
-        
+
         // Kiểm tra User-Agent để phát hiện mobile app
         const userAgent = req.headers['user-agent'] || '';
         if (userAgent.toLowerCase().includes('mobile') || req.query.platform === 'mobile') {
@@ -143,14 +143,19 @@ exports.handleVNPayIpn = async (req, res) => {
         payment.vnp_ResponseCode = verify.vnp_ResponseCode;
         payment.vnp_BankCode = verify.vnp_BankCode;
         const payDateStr = verify.vnp_PayDate; // "20250424210435"
-        const payDate = new Date(
-            payDateStr.substring(0, 4),          // year
+        let payDate = new Date(
+            payDateStr.substring(0, 4),           // year
             parseInt(payDateStr.substring(4, 6)) - 1, // month (zero-based)
-            payDateStr.substring(6, 8),          // day
-            payDateStr.substring(8, 10),         // hour
-            payDateStr.substring(10, 12),        // minute
-            payDateStr.substring(12, 14)         // second
+            payDateStr.substring(6, 8),           // day
+            payDateStr.substring(8, 10),          // hour
+            payDateStr.substring(10, 12),         // minute
+            payDateStr.substring(12, 14)          // second
         );
+
+        // 👉 Chuyển sang giờ VN bằng cách cộng thêm 7 giờ
+        payDate = new Date(payDate.getTime() + 7 * 60 * 60 * 1000);
+
+        payment.vnp_PayDate = payDate;
         if (verify.isSuccess) {
             payment.status_order = 'completed';
 
@@ -158,30 +163,30 @@ exports.handleVNPayIpn = async (req, res) => {
             await Ticket.findByIdAndUpdate(payment.ticket_id, {
                 status: 'confirmed'
             });
-            
+
             // Cập nhật trạng thái ghế thành 'booked'
             if (ticket.seats && ticket.seats.length > 0) {
                 const Seat = require('../models/seat');
-                
+
                 // Lấy danh sách ID ghế từ ticket
                 const seatIds = ticket.seats.map(seat => seat.seat_id);
-                
+
                 // Cập nhật trạng thái ghế thành 'booked'
                 await Seat.updateMany(
                     { _id: { $in: seatIds } },
                     { $set: { seat_status: 'booked', selected_by: null, selection_time: null } }
                 );
-                
+
                 console.log(`IPN: Đã cập nhật ${seatIds.length} ghế thành 'booked'`);
-                
+
                 // Thông báo qua Pusher về việc cập nhật trạng thái ghế
                 const pusher = require('../utils/pusher');
                 const showtime = await require('../models/showTime').findById(ticket.showtime_id);
-                
+
                 if (showtime && showtime.room_id) {
                     // Lấy room_id từ showtime
                     const roomId = showtime.room_id;
-                    
+
                     // Gửi thông báo cập nhật nhiều ghế qua Pusher
                     pusher.trigger(`room-${roomId}`, 'seat-status-changed', {
                         type: 'multiple',
@@ -190,7 +195,7 @@ exports.handleVNPayIpn = async (req, res) => {
                             status: 'booked'
                         }
                     });
-                    
+
                     console.log(`IPN: Đã gửi thông báo Pusher để cập nhật trạng thái ghế cho phòng ${roomId}`);
                 }
             }
@@ -261,10 +266,10 @@ exports.verifyPayment = async (req, res) => {
             await ticket.save();
 
             console.log("Đang cập nhật trạng thái ghế từ selecting thành booked...");
-            
+
             // Lấy danh sách seat_ids từ ticket
             const seatIds = ticket.seats.map(seat => seat.seat_id);
-            
+
             // Lấy room_id từ showtime vì ticket không có trực tiếp room_id
             let roomId = null;
             try {
@@ -279,8 +284,8 @@ exports.verifyPayment = async (req, res) => {
 
             if (!roomId) {
                 console.error("Không thể lấy được room_id từ showtime");
-                return res.status(400).json({ 
-                    success: false, 
+                return res.status(400).json({
+                    success: false,
                     message: 'Không thể cập nhật ghế do thiếu thông tin phòng'
                 });
             }
@@ -289,18 +294,18 @@ exports.verifyPayment = async (req, res) => {
             try {
                 const Seat = require('../models/seat');
                 const pusher = require('../utils/pusher');
-                
+
                 // In ra log để xác định giá trị seatIds là gì
                 console.log("Thông tin seat_ids cần cập nhật:", seatIds);
-                
+
                 // Cập nhật trạng thái ghế thành "booked" dựa trên _id thay vì seat_id
                 const updateResult = await Seat.updateMany(
                     { _id: { $in: seatIds } },
                     { seat_status: 'booked', selected_by: null, selection_time: null }
                 );
-                
+
                 console.log(`Đã cập nhật ${updateResult.modifiedCount} ghế thành booked`);
-                
+
                 // Gửi thông báo qua Pusher về việc cập nhật ghế
                 pusher.trigger(`room-${roomId}`, 'seats-booked', {
                     seat_ids: seatIds,
@@ -311,8 +316,8 @@ exports.verifyPayment = async (req, res) => {
             }
 
             return res.json({
-                success: true, 
-                message: 'Thanh toán thành công', 
+                success: true,
+                message: 'Thanh toán thành công',
                 status: 'completed',
                 data: ticket
             });
@@ -322,8 +327,8 @@ exports.verifyPayment = async (req, res) => {
         await payment.save();
 
         // Trả về kết quả
-        return res.json({ 
-            success: true, 
+        return res.json({
+            success: true,
             message: 'Thanh toán thất bại',
             status: 'failed',
             payment: {
@@ -335,10 +340,10 @@ exports.verifyPayment = async (req, res) => {
         });
     } catch (error) {
         console.error(`Lỗi khi xác thực thanh toán: ${error.message}`);
-        return res.status(500).json({ 
-            success: false, 
+        return res.status(500).json({
+            success: false,
             message: 'Lỗi server khi xác thực thanh toán',
-            error: error.message 
+            error: error.message
         });
     }
 };
