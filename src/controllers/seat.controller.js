@@ -3,7 +3,7 @@ const Room = require('../models/room');
 const createResponse = require('../utils/responseHelper');
 const { updateRoomTotalSeats } = require('./room.controller');
 const mongoose = require('mongoose');
-const pusher = require('../utils/pusher');
+const io = require('../utils/socket');
 
 // Lấy tất cả ghế
 exports.getAllSeats = async (req, res) => {
@@ -145,11 +145,8 @@ exports.updateSeatStatus = async (req, res) => {
             });
 
         // Gửi thông báo qua Pusher
-        pusher.trigger(`room-${room_id}`, 'seat-status-changed', {
-            seat_id: seat.seat_id,
-            status: seat_status,
-            id: id
-        });
+        io.to(channelName).emit('eventName', payload);
+
 
         res.json(createResponse(200, 'Cập nhật trạng thái ghế thành công', populatedSeat));
     } catch (error) {

@@ -6,7 +6,7 @@ var logger = require('morgan');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors'); // Chỉ khai báo một lần!
-
+const http = require('http');
 // Load environment variables
 dotenv.config();
 
@@ -32,7 +32,9 @@ var transactionRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/t
 var bannerRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/banner'); // Import routes banner
 
 var app = express();
-
+const server = http.createServer(app); // 🔥 Phải tạo trước khi gọi setupSocket
+const { setupSocket } = require('./src/utils/socket');
+setupSocket(server); // ✅ gọi sau khi đã có server
 // Cấu hình CORS - Cho phép tất cả các nguồn, bao gồm cả mobile app
 app.use(cors({
   origin: '*', // Cho phép tất cả các nguồn
@@ -89,4 +91,4 @@ app.use(function (err, req, res, next) {
   res.render('error');
 });
 
-module.exports = app;
+module.exports = { app, server };
