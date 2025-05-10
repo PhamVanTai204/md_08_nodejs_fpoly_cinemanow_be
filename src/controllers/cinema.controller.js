@@ -322,7 +322,7 @@ exports.getRoomByShowtime = async (req, res) => {
                 });
         }
 
-        console.log('Showtime found:', showtime); // Log để debug
+        // console.log('[DEBUG]:', showtime); // Log để debug
 
         if (!showtime) {
             return res.status(404).json(createResponse(404, 'Không tìm thấy suất chiếu', null));

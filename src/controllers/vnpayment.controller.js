@@ -1,3 +1,4 @@
+const { getIO } = require('../utils/socket');
 //const vnpay = require('../config/vnpayConfig.js');
 const { ProductCode, VnpLocale, dateFormat, consoleLogger, IpnFailChecksum,
     IpnOrderNotFound,
@@ -180,15 +181,14 @@ exports.handleVNPayIpn = async (req, res) => {
                 console.log(`IPN: Đã cập nhật ${seatIds.length} ghế thành 'booked'`);
 
                 // Thông báo qua Pusher về việc cập nhật trạng thái ghế
-                const pusher = require('../utils/pusher');
                 const showtime = await require('../models/showTime').findById(ticket.showtime_id);
 
                 if (showtime && showtime.room_id) {
                     // Lấy room_id từ showtime
                     const roomId = showtime.room_id;
-
+                    const io = getIO();
                     // Gửi thông báo cập nhật nhiều ghế qua Pusher
-                    pusher.trigger(`room-${roomId}`, 'seat-status-changed', {
+                    io.to(`room-${roomId}`).emit('seat-status-changed', {
                         type: 'multiple',
                         data: {
                             seat_ids: seatIds,
@@ -305,12 +305,13 @@ exports.verifyPayment = async (req, res) => {
                 );
 
                 console.log(`Đã cập nhật ${updateResult.modifiedCount} ghế thành booked`);
-
+                const io = getIO();
                 // Gửi thông báo qua Pusher về việc cập nhật ghế
-                pusher.trigger(`room-${roomId}`, 'seats-booked', {
+                io.to(`room-${roomId}`).emit('seats-booked', {
                     seat_ids: seatIds,
                     status: 'booked'
                 });
+                
             } catch (updateError) {
                 console.error("Lỗi khi cập nhật trạng thái ghế:", updateError);
             }

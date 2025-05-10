@@ -1,15 +1,10 @@
-// src/utils/socket.js
-const { Server } = require('socket.io');
+let ioInstance = null;
 
 function setupSocket(server) {
+  const { Server } = require('socket.io');
   const io = new Server(server, {
-    cors: {
-      origin: '*',
-      methods: ['GET', 'POST']
-    }
+    cors: { origin: '*', methods: ['GET', 'POST'] }
   });
-
-  console.log('✅ Socket.IO setup completed');
 
   io.on('connection', (socket) => {
     console.log('🧩 New client connected');
@@ -29,7 +24,13 @@ function setupSocket(server) {
     });
   });
 
+  ioInstance = io; // gán lại instance
   return io;
 }
 
-module.exports = { setupSocket };
+function getIO() {
+  if (!ioInstance) throw new Error('Socket.IO chưa được khởi tạo!');
+  return ioInstance;
+}
+
+module.exports = { setupSocket, getIO };

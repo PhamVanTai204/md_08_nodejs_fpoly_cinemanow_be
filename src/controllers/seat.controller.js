@@ -3,7 +3,8 @@ const Room = require('../models/room');
 const createResponse = require('../utils/responseHelper');
 const { updateRoomTotalSeats } = require('./room.controller');
 const mongoose = require('mongoose');
-const io = require('../utils/socket');
+const { getIO } = require('../utils/socket');
+
 
 // Lấy tất cả ghế
 exports.getAllSeats = async (req, res) => {
@@ -143,7 +144,7 @@ exports.updateSeatStatus = async (req, res) => {
                     path: 'cinema_id'
                 }
             });
-
+        const io = getIO();
         // Gửi thông báo qua Pusher
         io.to(channelName).emit('eventName', payload);
 
@@ -433,13 +434,14 @@ exports.temporarySelectSeats = async (req, res) => {
             channelName = `room-${room_id}-${showtime_id}`;
             console.log(`Sử dụng kênh Pusher cho suất chiếu: ${channelName}`);
         }
- 
-        // Gửi thông báo qua Pusher
-        pusher.trigger(channelName, 'seats-selecting', {
+        const io = getIO();
+        io.to(channelName).emit('seats-selecting', {
             seat_ids,
             user_id,
             status: 'selecting'
-        });
+          });
+          
+          
 
         res.json(createResponse(200, "Đánh dấu ghế đang được chọn thành công", null));
     } catch (error) {
@@ -523,9 +525,8 @@ exports.releaseSeats = async (req, res) => {
             channelName = `room-${room_id}-${showtime_id}`;
             console.log(`Sử dụng kênh Pusher cho suất chiếu: ${channelName}`);
         }
-
-        // Gửi thông báo qua Pusher
-        pusher.trigger(channelName, 'seats-released', {
+        const io = getIO();
+        io.to(channelName).emit('seats-released', {
             seat_ids,
             user_id,
             status: 'available'
@@ -555,23 +556,22 @@ exports.initiatePayment = async (req, res) => {
             channelName = `room-${room_id}-${showtime_id}`;
             console.log(`Sử dụng kênh Pusher cho suất chiếu: ${channelName}`);
         }
-        
+        const io = getIO();
         // Gửi thông báo qua Pusher
-        pusher.trigger(channelName, 'payment-initiated', {
+        io.to(channelName).emit('payment-initiated', {
             seat_ids,
             user_id,
             status: 'payment_initiated'
         });
         
         // Gửi thông báo cũng đến kênh phòng chung để đảm bảo không bỏ lỡ ai
-        if (showtime_id) {
-            pusher.trigger(`room-${room_id}`, 'payment-initiated', {
-                seat_ids,
-                user_id,
-                status: 'payment_initiated',
-                showtime_id
-            });
-        }
+        io.to(`room-${room_id}`).emit('payment-initiated', {
+            seat_ids,
+            user_id,
+            status: 'payment_initiated',
+            showtime_id
+        });
+        
         
         res.json(createResponse(200, "Đã thông báo bắt đầu thanh toán", null));
     } catch (error) {
@@ -618,9 +618,9 @@ setInterval(async () => {
                         selection_time: null
                     }
                 );
-                
+                const io = getIO();
                 // Gửi thông báo qua Pusher
-                pusher.trigger(`room-${roomId}`, 'seats-released', {
+                io.to(`room-${roomId}`).emit('seats-released', {
                     seat_ids: seatIds,
                     status: 'available'
                 });
