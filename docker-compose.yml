@@ -8,7 +8,6 @@ services:
       - mongo
     environment:
       MONGO_URI: "mongodb+srv://sanndph32936:sandapchai12@cluster0.cstvl.mongodb.net/Learning?retryWrites=true&w=majority&appName=Cluster0"
- 
     restart: always
 
   mongo:

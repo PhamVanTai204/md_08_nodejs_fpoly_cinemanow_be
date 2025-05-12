@@ -91,7 +91,7 @@ exports.createShowTime = async (req, res) => {
             return res.status(400).json(createResponse(400, 'Mã suất chiếu đã tồn tại', null));
         }
 
-        // Chuyển đổi định dạng ngày DD/MM/YYYY thành YYYY-MM-DD
+        // // Chuyển đổi định dạng ngày DD/MM/YYYY thành YYYY-MM-DD
         let formattedDate;
         try {
             const [day, month, year] = show_date.split('/');
@@ -119,7 +119,21 @@ exports.createShowTime = async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(cinema_id)) {
             return res.status(400).json(createResponse(400, 'ID rạp không hợp lệ', null));
         }
+// Kiểm tra trùng lịch chiếu trong cùng phòng, cùng ngày
+const overlappingShowtime = await ShowTime.findOne({
+    room_id: room_id,
+    show_date: formattedDate,
+    $or: [
+        {
+            start_time: { $lt: end_time },
+            end_time: { $gt: start_time }
+        }
+    ]
+});
 
+if (overlappingShowtime) {
+    return res.status(400).json(createResponse(400, 'Lịch chiếu trùng với suất chiếu khác trong cùng phòng và khung giờ', null));
+}
         const newShowTime = new ShowTime({
             showtime_id,
             movie_id,

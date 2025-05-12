@@ -4,7 +4,7 @@ const Film = require('../models/film');
 const Seat = require('../models/seat');
 const createResponse = require('../utils/responseHelper');
 const mongoose = require('mongoose');
-
+const Ticket = require('../models/ticket');
 // Middleware kiểm tra ID hợp lệ
 const validateId = (req, res, next) => {
     if (!req.params.id) {
@@ -388,7 +388,7 @@ exports.getSeatsByRoom = async (req, res) => {
 // Lấy danh sách ghế theo ID phòng và ID suất chiếu
 exports.getSeatsByRoomAndShowTime = async (req, res) => {
     try {
-        const { room_id, showtime_id } = req.params;
+        const {showtime_id ,room_id,} = req.params;
 
         // Kiểm tra các tham số hợp lệ
         if (!mongoose.Types.ObjectId.isValid(room_id)) {
@@ -416,40 +416,55 @@ exports.getSeatsByRoomAndShowTime = async (req, res) => {
             return res.status(404).json(createResponse(404, 'Không tìm thấy ghế trong phòng này', null));
         }
 
-        // Lấy danh sách vé đã đặt cho suất chiếu này
-        const Ticket = require('../models/ticket');
         const bookedTickets = await Ticket.find({
             showtime_id: showtime_id,
             status: { $in: ['pending', 'completed'] }
         });
-
-        // Danh sách ID ghế đã được đặt trong suất chiếu này
+        
+         // Lấy danh sách các seat_id đã được đặt
         const bookedSeatIds = new Set();
-
         bookedTickets.forEach(ticket => {
-            if (ticket.seats && Array.isArray(ticket.seats)) {
-                ticket.seats.forEach(seat => {
-                    if (seat.seat_id) {
-                        bookedSeatIds.add(seat.seat_id);
-                    }
-                });
-            }
+            (ticket.seats || []).forEach(seat => {
+                if (seat.seat_id) bookedSeatIds.add(seat.seat_id.toString());
+            });
         });
 
-        console.log(`Suất chiếu ${showtime_id} có ${bookedSeatIds.size} ghế đã đặt`);
-
-        // Cập nhật trạng thái ghế theo dữ liệu đặt vé
+        // Gắn trạng thái "booked" cho ghế đã đặt
         const updatedSeats = seats.map(seat => {
-            // Tạo bản sao ghế để tránh thay đổi trực tiếp đối tượng Mongoose
             const seatObj = seat.toObject();
-
-            // Nếu ghế này đã được đặt trong suất chiếu hiện tại
-            if (bookedSeatIds.has(seat.seat_id)) {
+            if (bookedSeatIds.has(seat.seat_id.toString())) {
                 seatObj.seat_status = 'booked';
             }
-
             return seatObj;
         });
+
+        // // Danh sách ID ghế đã được đặt trong suất chiếu này
+        // const bookedSeatIds = new Set();
+
+        // bookedTickets.forEach(ticket => {
+        //     if (ticket.seats && Array.isArray(ticket.seats)) {
+        //         ticket.seats.forEach(seat => {
+        //             if (seat.seat_id) {
+        //                 bookedSeatIds.add(seat.seat_id);
+        //             }
+        //         });
+        //     }
+        // });
+
+        // console.log(`Suất chiếu ${showtime_id} có ${bookedSeatIds.size} ghế đã đặt`);
+
+        // // Cập nhật trạng thái ghế theo dữ liệu đặt vé
+        // const updatedSeats = seats.map(seat => {
+        //     // Tạo bản sao ghế để tránh thay đổi trực tiếp đối tượng Mongoose
+        //     const seatObj = seat.toObject();
+
+        //     // Nếu ghế này đã được đặt trong suất chiếu hiện tại
+        //     if (bookedSeatIds.has(seat.seat_id)) {
+        //         seatObj.seat_status = 'booked';
+        //     }
+
+        //     return seatObj;
+        // });
 
         res.json(createResponse(200, null, updatedSeats));
     } catch (error) {
