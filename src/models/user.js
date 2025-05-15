@@ -31,6 +31,10 @@ const userSchema = db.mongoose.Schema({
     type: Date,
     required: false, // Đã sửa lỗi chính tả
   },
+  location:{
+    type: String,
+    required: false,
+  },
   gender: {
     type: Number, // Đã sửa lỗi chính tả
     required: false,

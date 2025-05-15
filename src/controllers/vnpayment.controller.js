@@ -10,7 +10,9 @@ const { ProductCode, VnpLocale, dateFormat, consoleLogger, IpnFailChecksum,
 const { VNPay, ignoreLogger } = require('vnpay');
 const Ticket = require('../models/ticket');
 const Payment = require('../models/payment');
-
+const ShowTime = require('../models/showTime');
+const Seat = require('../models/seat');
+const pusher = require('../utils/pusher');
 // ANCHOR: Khởi tạo VNPay với thông tin cấu hình
 const vnpay = new VNPay({
     // IMPORTANT: Thông tin xác thực VNPay
@@ -309,7 +311,7 @@ exports.verifyPayment = async (req, res) => {
             // IMPORTANT: Lấy room_id từ showtime vì ticket không có trực tiếp room_id
             let roomId = null;
             try {
-                const ShowTime = require('../models/showTime');
+                
                 const showtime = await ShowTime.findById(ticket.showtime_id);
                 if (showtime) {
                     roomId = showtime.room_id;
@@ -330,8 +332,7 @@ exports.verifyPayment = async (req, res) => {
 
             // ANCHOR: Cập nhật trạng thái ghế và gửi thông báo
             try {
-                const Seat = require('../models/seat');
-                const pusher = require('../utils/pusher');
+               
 
                 // DEBUG: Ghi log thông tin seatIds
                 console.log("Thông tin seat_ids cần cập nhật:", seatIds);

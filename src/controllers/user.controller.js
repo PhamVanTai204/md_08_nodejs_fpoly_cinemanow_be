@@ -8,7 +8,7 @@ const OTP = require('../models/otp.model'); // Import model OTP
 const createResponse = require('../utils/responseHelper');
 const mongoose = require('mongoose');
 const { getRoleName } = require('../utils/role_hepler');
-
+const Cinema = require('../models/cinema'); // Đảm bảo đã import model Cinema
 // ANCHOR: Xóa người dùng theo ID
 exports.deleteUser = async (req, res) => {
   const { id } = req.params;
@@ -117,6 +117,118 @@ exports.login = async (req, res) => {
   } catch (error) {
     // ERROR: Ghi log lỗi khi đăng nhập
     return res.status(500).json(createResponse(500, 'Lỗi server', error.message));
+  }
+};
+
+// ANCHOR: Đăng nhập trang web với địa chỉ rạp
+exports.loginWebByLocation = async (req, res) => {
+  const { email, password, location } = req.body;
+
+  // VALIDATION: Kiểm tra đầy đủ thông tin
+  if (!email) return res.status(400).json(createResponse(400, 'Vui lòng nhập email', null));
+  if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/.test(email))
+    return res.status(400).json(createResponse(400, 'Email phải có định dạng @gmail.com', null));
+  if (!password) return res.status(400).json(createResponse(400, 'Vui lòng nhập mật khẩu', null));
+  if (!location) return res.status(400).json(createResponse(400, 'Vui lòng chọn tên rạp', null));
+
+  try {
+    // STEP 1: Tìm rạp theo tên (cinema_name)
+    const cinema = await Cinema.findOne({ cinema_name: location });
+    if (!cinema) {
+      return res.status(404).json(createResponse(404, 'Tên rạp không tồn tại trong hệ thống', null));
+    }
+
+    // STEP 2: Tìm người dùng
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json(createResponse(404, 'Email không tồn tại', null));
+
+    // STEP 3: Kiểm tra mật khẩu
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(401).json(createResponse(401, 'Mật khẩu không chính xác', null));
+
+    // STEP 4: Tạo JWT token
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        user_name: user.user_name,
+        role: user.role,
+        url_image: user.url_image,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    // STEP 5: Trả về thông tin người dùng kèm thông tin rạp
+    return res.status(200).json(createResponse(200, null, {
+      userId: user._id,
+      user_name: user.user_name,
+      email: user.email,
+      role: user.role,
+      url_image: user.url_image,
+      token,
+      phone_number: user.phone_number ?? '',
+      date_of_birth: user.date_of_birth ?? '',
+      gender: user.gender !== undefined ? Number(user.gender) : null,
+      cinema_id: cinema._id,
+      cinema_name: cinema.cinema_name,
+      location: cinema.location,
+    }));
+  } catch (error) {
+    return res.status(500).json(createResponse(500, 'Lỗi server khi đăng nhập', error.message));
+  }
+};
+
+
+// ANCHOR: Đăng ký tài khoản mới theo tên rạp (location)
+exports.registerWebByLocation = async (req, res) => {
+  const { user_name, email, password, url_image, role, location } = req.body;
+
+  // VALIDATION: Kiểm tra đầy đủ thông tin
+  if (!user_name) return res.status(400).json(createResponse(400, 'Vui lòng nhập tên người dùng', null));
+  if (!email) return res.status(400).json(createResponse(400, 'Vui lòng nhập email', null));
+  if (!password) return res.status(400).json(createResponse(400, 'Vui lòng nhập mật khẩu', null));
+  if (!url_image) return res.status(400).json(createResponse(400, 'Vui lòng cung cấp ảnh đại diện (url_image)', null));
+  if (!location) return res.status(400).json(createResponse(400, 'Vui lòng chọn tên rạp', null));
+  if (role === undefined || role === null || isNaN(role)) {
+    return res.status(400).json(createResponse(400, 'Vui lòng chọn vai trò người dùng (role)', null));
+  }
+
+  // VALIDATION: Định dạng dữ liệu
+  const usernameRegex = /^[a-zA-Z0-9]{3,}$/;
+  const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/;
+
+  if (!usernameRegex.test(user_name)) return res.status(400).json(createResponse(400, 'Username không hợp lệ', null));
+  if (!passwordRegex.test(password)) return res.status(400).json(createResponse(400, 'Password không hợp lệ', null));
+  if (!emailRegex.test(email)) return res.status(400).json(createResponse(400, 'Email phải có định dạng @gmail.com', null));
+
+  try {
+    // STEP 1: Kiểm tra rạp có tồn tại trong database theo tên rạp
+    const cinema = await Cinema.findOne({ cinema_name: location });
+    if (!cinema) {
+      return res.status(404).json(createResponse(404, 'Tên rạp không tồn tại trong hệ thống', null));
+    }
+
+    // STEP 2: Kiểm tra email hoặc username đã tồn tại chưa
+    const user = await User.findOne({ $or: [{ email }, { user_name }] });
+    if (user) return res.status(409).json(createResponse(409, 'Email hoặc username đã tồn tại', null));
+
+    // STEP 3: Mã hóa mật khẩu và lưu
+    const hashedPassword = await bcrypt.hash(password, await bcrypt.genSalt(10));
+    const newUser = new User({
+      user_name,
+      email,
+      password: hashedPassword,
+      url_image,
+      role,
+      // Có thể gán thêm `cinema_id: cinema._id` nếu muốn ràng buộc người dùng với rạp
+    });
+
+    await newUser.save();
+
+    return res.status(201).json(createResponse(201, null, 'Đăng ký thành công'));
+  } catch (error) {
+    return res.status(500).json(createResponse(500, 'Lỗi server khi đăng ký', error.message));
   }
 };
 
@@ -545,6 +657,9 @@ exports.logoutAll = async (req, res) => {
     res.status(500).json(createResponse(500, 'Lỗi server', error.message));
   }
 };
+
+
+
 
 // IDEA: Thêm chức năng thay đổi mật khẩu cho người dùng đã đăng nhập
 // TODO: Thêm chức năng xác thực email sau khi đăng ký

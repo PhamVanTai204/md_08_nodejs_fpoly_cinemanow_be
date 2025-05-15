@@ -5,6 +5,9 @@ const auth = require('../middleware/auth'); // Middleware xác thực
 
 router.post('/reg', uc.reg);
 router.post('/login', uc.login);
+router.post('/loginWebByLocation',uc.loginWebByLocation)
+router.post('/registerWebByLocation', uc.registerWebByLocation);
+
 router.post('/forgotpassword', uc.forgotPassword);
 router.post('/forgotpassword/confirmOTP', uc.confirmOTP);
 router.post('/resetPassword', uc.resetPassword);
