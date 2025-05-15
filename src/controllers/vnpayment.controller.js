@@ -13,6 +13,10 @@ const Payment = require('../models/payment');
 const ShowTime = require('../models/showTime');
 const Seat = require('../models/seat');
 const pusher = require('../utils/pusher');
+const User = require('../models/user');
+const nodemailer = require('nodemailer');
+
+
 // ANCHOR: Khởi tạo VNPay với thông tin cấu hình
 const vnpay = new VNPay({
     // IMPORTANT: Thông tin xác thực VNPay
@@ -301,7 +305,46 @@ exports.verifyPayment = async (req, res) => {
             // NOTE: Cập nhật trạng thái vé
             ticket.status = 'confirmed';
             await ticket.save();
+// STEP: Gửi email xác nhận vé cho người dùng
+try {
+    const user = await User.findById(ticket.user_id);
+    if (user && user.email) {
+        const transporter = nodemailer.createTransport({
+            service: 'Gmail',
+            auth: {
+                    user: 'sanndph32936@fpt.edu.vn',
+        pass: 'tlqb wbgl llzt mbnw',
+            },
+            tls: { rejectUnauthorized: false }
+        });
 
+        // Tạo nội dung email
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: user.email,
+            subject: 'Xác nhận đặt vé thành công 🎟️',
+            html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px;">
+                    <h2 style="color: #28a745;">Chúc mừng ${user.full_name || user.user_name}!</h2>
+                    <p>Bạn đã đặt vé thành công tại hệ thống <b>Cinema Now</b>.</p>
+                    <h3>Thông tin vé:</h3>
+                    <ul>
+                        <li><b>Mã vé:</b> ${ticket._id}</li>
+                        <li><b>Số ghế:</b> ${ticket.seats.map(s => s.seat_id).join(', ')}</li>
+                        <li><b>Tổng tiền:</b> ${ticket.total_amount.toLocaleString()} VNĐ</li>
+                        <li><b>Thời gian thanh toán:</b> ${new Date().toLocaleString()}</li>
+                    </ul>
+                    <p>Xin cảm ơn quý khách đã sử dụng dịch vụ!</p>
+                </div>
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`✅ Đã gửi email xác nhận vé đến: ${user.email}`);
+    }
+} catch (mailErr) {
+    console.error("❌ Lỗi khi gửi email xác nhận:", mailErr.message);
+}
             // DEBUG: Ghi log quá trình cập nhật ghế
             console.log("Đang cập nhật trạng thái ghế từ selecting thành booked...");
 
