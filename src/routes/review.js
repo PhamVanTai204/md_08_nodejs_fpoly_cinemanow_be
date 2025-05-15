@@ -1,3 +1,4 @@
+// Cập nhật file routes/review.js
 const express = require('express');
 const router = express.Router();
 const reviewController = require('../controllers/review.controller');
@@ -20,4 +21,7 @@ router.put('/update/:id', reviewController.updateReview);
 // Xóa đánh giá
 router.delete('/delete/:id', reviewController.deleteReview);
 
-module.exports = router; 
+// THÊM ROUTE MỚI CHO BÁO CÁO BÌNH LUẬN
+router.post('/report-comment', reviewController.reportComment);
+
+module.exports = router;
