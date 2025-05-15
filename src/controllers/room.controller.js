@@ -1,25 +1,39 @@
+// SECTION: Import các modules cần thiết
 const Room = require('../models/room');
 const Cinema = require('../models/cinema');
 const Seat = require('../models/seat');
 const createResponse = require('../utils/responseHelper');
 
-// Middleware kiểm tra ID hợp lệ
+// ANCHOR: Middleware và functions hỗ trợ
+/**
+ * Middleware kiểm tra ID hợp lệ
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ * @param {Function} next - Next middleware function
+ */
 const validateId = (req, res, next) => {
+    // FIXME: Cần thêm kiểm tra định dạng ID có đúng mongoDB ObjectId không
     if (!req.params.id) {
         return res.status(400).json(createResponse(400, 'Thiếu ID phòng', null));
     }
     next();
 };
 
-// Lấy danh sách phòng
+// SECTION: API endpoints xử lý phòng chiếu
+/**
+ * Lấy danh sách phòng với phân trang
+ * @route GET /api/rooms
+ */
 exports.getRoom = async (req, res) => {
     try {
         let { page, limit } = req.query;
 
+        // NOTE: Đặt giá trị mặc định cho phân trang
         page = parseInt(page) || 1;
         limit = parseInt(limit) || 10;
         const skip = (page - 1) * limit;
 
+        // TODO: Thêm tùy chọn lọc theo trạng thái và loại phòng
         const rooms = await Room.find()
             .populate('cinema_id')
             .skip(skip)
@@ -41,7 +55,10 @@ exports.getRoom = async (req, res) => {
     }
 };
 
-// Lấy phòng theo ID
+/**
+ * Lấy thông tin phòng theo ID
+ * @route GET /api/rooms/:id
+ */
 exports.getRoomId = async (req, res) => {
     try {
         const room = await Room.findById(req.params.id).populate('cinema_id');
@@ -55,12 +72,19 @@ exports.getRoomId = async (req, res) => {
     }
 };
 
-// Thêm phòng mới
+/**
+ * Tạo phòng mới
+ * @route POST /api/rooms
+ * @param {Object} req.body - Thông tin phòng mới
+ * @param {string} req.body.cinema_id - ID của rạp
+ * @param {string} req.body.room_name - Tên phòng
+ * @param {string} req.body.room_style - Loại phòng (2D, 3D, 4DX, IMAX)
+ */
 exports.addRoom = async (req, res) => {
     try {
         const { cinema_id, room_name, room_style } = req.body;
 
-        // Kiểm tra đầy đủ thông tin bắt buộc
+        // IMPORTANT: Kiểm tra đầy đủ thông tin bắt buộc
         if (!cinema_id) {
             return res.status(400).json(createResponse(400, 'Thiếu thông tin rạp (cinema_id)', null));
         }
@@ -77,7 +101,7 @@ exports.addRoom = async (req, res) => {
             return res.status(404).json(createResponse(404, 'Không tìm thấy rạp với ID đã cung cấp', null));
         }
 
-        // Kiểm tra room_style hợp lệ
+        // WARNING: Kiểm tra room_style hợp lệ
         const validStyles = ['2D', '3D', '4DX', 'IMAX'];
         if (!validStyles.includes(room_style)) {
             return res.status(400).json(createResponse(400, 'Loại phòng không hợp lệ. Chỉ chấp nhận: 2D, 3D, 4DX, IMAX', null));
@@ -89,7 +113,7 @@ exports.addRoom = async (req, res) => {
             return res.status(400).json(createResponse(400, 'Tên phòng đã tồn tại trong rạp này', null));
         }
 
-        // Tạo phòng mới với total_seat mặc định là 0
+        // NOTE: Tạo phòng mới với total_seat mặc định là 0
         const room = new Room({
             cinema_id,
             room_name,
@@ -100,7 +124,7 @@ exports.addRoom = async (req, res) => {
 
         const savedRoom = await room.save();
 
-        // Cập nhật total_room của cinema
+        // IMPORTANT: Cập nhật total_room của cinema
         cinema.total_room += 1;
         await cinema.save();
 
@@ -112,7 +136,10 @@ exports.addRoom = async (req, res) => {
     }
 };
 
-// Cập nhật phòng
+/**
+ * Cập nhật thông tin phòng
+ * @route PUT /api/rooms/:id
+ */
 exports.updateRoom = async (req, res) => {
     try {
         const { cinema_id, room_name, room_style, total_seat, status } = req.body;
@@ -132,7 +159,7 @@ exports.updateRoom = async (req, res) => {
             }
         }
 
-        // Kiểm tra room_style hợp lệ nếu có cập nhật
+        // WARNING: Kiểm tra room_style hợp lệ nếu có cập nhật
         if (room_style) {
             const validStyles = ['2D', '3D', '4DX', 'IMAX'];
             if (!validStyles.includes(room_style)) {
@@ -140,14 +167,15 @@ exports.updateRoom = async (req, res) => {
             }
         }
 
-        // Kiểm tra total_seat hợp lệ nếu có cập nhật
+        // FIXME: Kiểm tra total_seat hợp lệ nếu có cập nhật
+        // Nên đảm bảo total_seat khớp với số lượng ghế thực tế trong database
         if (total_seat !== undefined) {
             if (total_seat <= 0) {
                 return res.status(400).json(createResponse(400, 'Số lượng ghế phải lớn hơn 0', null));
             }
         }
 
-        // Kiểm tra status hợp lệ nếu có cập nhật
+        // NOTE: Kiểm tra status hợp lệ nếu có cập nhật
         if (status) {
             const validStatus = ['active', 'maintenance', 'inactive'];
             if (!validStatus.includes(status)) {
@@ -167,7 +195,7 @@ exports.updateRoom = async (req, res) => {
             }
         }
 
-        // Cập nhật thông tin
+        // IMPORTANT: Cập nhật thông tin
         if (cinema_id) room.cinema_id = cinema_id;
         if (room_name) room.room_name = room_name;
         if (room_style) room.room_style = room_style;
@@ -183,7 +211,10 @@ exports.updateRoom = async (req, res) => {
     }
 };
 
-// Xóa phòng
+/**
+ * Xóa phòng
+ * @route DELETE /api/rooms/:id
+ */
 exports.deleteRoom = async (req, res) => {
     try {
         const room = await Room.findById(req.params.id);
@@ -191,7 +222,9 @@ exports.deleteRoom = async (req, res) => {
             return res.status(404).json(createResponse(404, 'Không tìm thấy phòng', null));
         }
 
-        // Lấy thông tin cinema để cập nhật total_room
+        // TODO: Kiểm tra phòng có đang được sử dụng trong lịch chiếu không trước khi xóa
+
+        // IMPORTANT: Lấy thông tin cinema để cập nhật total_room
         const cinema = await Cinema.findById(room.cinema_id);
         if (cinema) {
             cinema.total_room = Math.max(0, cinema.total_room - 1); // Đảm bảo không âm
@@ -206,7 +239,10 @@ exports.deleteRoom = async (req, res) => {
     }
 };
 
-//Lấy các phòng thuộc 1 cinema
+/**
+ * Lấy danh sách phòng theo rạp
+ * @route GET /api/cinemas/:cinemaId/rooms
+ */
 exports.getRoomsByCinema = async (req, res) => {
     try {
         const { cinemaId } = req.params;
@@ -228,13 +264,20 @@ exports.getRoomsByCinema = async (req, res) => {
     }
 };
 
-// Cập nhật số lượng ghế của phòng
+// SECTION: Các hàm tiện ích
+
+/**
+ * Cập nhật số lượng ghế của phòng
+ * @param {string} roomId - ID của phòng cần cập nhật
+ * @returns {Promise<number>} Số lượng ghế đã cập nhật
+ * @private
+ */
 const updateRoomTotalSeats = async (roomId) => {
     try {
         // Đếm số lượng ghế trong phòng
         const seatCount = await Seat.countDocuments({ room_id: roomId });
 
-        // Cập nhật total_seat của phòng
+        // OPTIMIZE: Có thể sử dụng aggregation để đếm ghế theo trạng thái
         await Room.findByIdAndUpdate(roomId, { total_seat: seatCount });
 
         return seatCount;
@@ -243,6 +286,10 @@ const updateRoomTotalSeats = async (roomId) => {
         throw error;
     }
 };
+
+// IDEA: Thêm endpoint để tạo sơ đồ ghế tự động theo mẫu có sẵn
+
+// LINK: Tham khảo mô hình dữ liệu tại https://github.com/example/cinema-booking-models
 
 // Export function để các controller khác có thể sử dụng
 exports.updateRoomTotalSeats = updateRoomTotalSeats;

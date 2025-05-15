@@ -2,18 +2,21 @@ const Voucher = require('../models/voucher');
 const createResponse = require('../utils/responseHelper');
 const mongoose = require('mongoose');
 
-// Lấy tất cả voucher
+// SECTION: Controllers quản lý voucher
+
+// ANCHOR: Lấy danh sách voucher
 exports.getAllVouchers = async (req, res) => {
     try {
         const vouchers = await Voucher.find();
         res.json(createResponse(200, null, vouchers));
     } catch (error) {
+        // ERROR: Ghi log lỗi khi không thể lấy danh sách voucher
         console.error('Get all vouchers error:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách voucher', null));
     }
 };
 
-// Lấy voucher theo ID
+// ANCHOR: Lấy voucher theo ID
 exports.getVoucherById = async (req, res) => {
     try {
         const voucher = await Voucher.findById(req.params.id);
@@ -24,34 +27,34 @@ exports.getVoucherById = async (req, res) => {
 
         res.json(createResponse(200, null, voucher));
     } catch (error) {
+        // ERROR: Ghi log lỗi khi không thể lấy thông tin voucher theo ID
         console.error('Get voucher by id error:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi lấy thông tin voucher', null));
     }
 };
 
-// Tạo voucher mới
+// ANCHOR: Tạo voucher mới
 exports.createVoucher = async (req, res) => {
     try {
         const { voucher_id, voucher_value, start_date_voucher, end_date_voucher, total_voucher, code_voucher, status_voucher } = req.body;
 
-        // Kiểm tra đầy đủ thông tin
+        // IMPORTANT: Kiểm tra đầy đủ thông tin trước khi tạo voucher
         if (!voucher_id || !voucher_value || !start_date_voucher || !end_date_voucher || !total_voucher || !code_voucher) {
             return res.status(400).json(createResponse(400, 'Vui lòng cung cấp đầy đủ thông tin', null));
         }
 
-        // Kiểm tra voucher_id đã tồn tại
+        // NOTE: Kiểm tra sự tồn tại của voucher để tránh trùng lặp
         const existingVoucherId = await Voucher.findOne({ voucher_id });
         if (existingVoucherId) {
             return res.status(400).json(createResponse(400, 'Mã voucher đã tồn tại', null));
         }
 
-        // Kiểm tra code_voucher đã tồn tại
         const existingVoucherCode = await Voucher.findOne({ code_voucher });
         if (existingVoucherCode) {
             return res.status(400).json(createResponse(400, 'Mã code voucher đã tồn tại', null));
         }
 
-        // Kiểm tra ngày hợp lệ
+        // IMPORTANT: Kiểm tra tính hợp lệ của ngày bắt đầu và kết thúc
         const startDate = new Date(start_date_voucher);
         const endDate = new Date(end_date_voucher);
 
@@ -63,7 +66,9 @@ exports.createVoucher = async (req, res) => {
             return res.status(400).json(createResponse(400, 'Ngày kết thúc phải sau ngày bắt đầu', null));
         }
 
-        // Kiểm tra giá trị voucher và số lượng
+        // FIXME: Cần thêm validation cho định dạng ngày tháng cụ thể
+
+        // NOTE: Kiểm tra các giá trị số
         if (voucher_value <= 0) {
             return res.status(400).json(createResponse(400, 'Giá trị voucher phải lớn hơn 0', null));
         }
@@ -85,29 +90,30 @@ exports.createVoucher = async (req, res) => {
         const savedVoucher = await newVoucher.save();
         res.status(201).json(createResponse(201, 'Tạo voucher thành công', savedVoucher));
     } catch (error) {
+        // ERROR: Ghi log lỗi khi không thể tạo voucher
         console.error('Create voucher error:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi tạo voucher', null));
     }
 };
 
-// Cập nhật voucher
+// ANCHOR: Cập nhật thông tin voucher
 exports.updateVoucher = async (req, res) => {
     try {
         const { voucher_value, start_date_voucher, end_date_voucher, total_voucher, status_voucher } = req.body;
         const id = req.params.id;
 
-        // Kiểm tra ID hợp lệ
+        // IMPORTANT: Kiểm tra tính hợp lệ của ID
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json(createResponse(400, 'ID voucher không hợp lệ', null));
         }
 
-        // Kiểm tra voucher tồn tại
+        // NOTE: Kiểm tra sự tồn tại của voucher
         const voucher = await Voucher.findById(id);
         if (!voucher) {
             return res.status(404).json(createResponse(404, 'Không tìm thấy voucher', null));
         }
 
-        // Kiểm tra và cập nhật ngày nếu có
+        // IMPORTANT: Kiểm tra và cập nhật ngày nếu có
         if (start_date_voucher || end_date_voucher) {
             const startDate = start_date_voucher ? new Date(start_date_voucher) : voucher.start_date_voucher;
             const endDate = end_date_voucher ? new Date(end_date_voucher) : voucher.end_date_voucher;
@@ -124,7 +130,9 @@ exports.updateVoucher = async (req, res) => {
             voucher.end_date_voucher = endDate;
         }
 
-        // Cập nhật các thông tin khác
+        // FIXME: Cần kiểm tra thêm về định dạng và tính hợp lệ của ngày
+
+        // NOTE: Cập nhật các thông tin khác
         if (voucher_value !== undefined) {
             if (voucher_value <= 0) {
                 return res.status(400).json(createResponse(400, 'Giá trị voucher phải lớn hơn 0', null));
@@ -140,6 +148,7 @@ exports.updateVoucher = async (req, res) => {
         }
 
         if (status_voucher) {
+            // WARNING: Đảm bảo trạng thái voucher hợp lệ
             if (!['active', 'inactive', 'expired'].includes(status_voucher)) {
                 return res.status(400).json(createResponse(400, 'Trạng thái voucher không hợp lệ', null));
             }
@@ -149,12 +158,13 @@ exports.updateVoucher = async (req, res) => {
         const updatedVoucher = await voucher.save();
         res.json(createResponse(200, 'Cập nhật voucher thành công', updatedVoucher));
     } catch (error) {
+        // ERROR: Ghi log lỗi khi không thể cập nhật voucher
         console.error('Update voucher error:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi cập nhật voucher', null));
     }
 };
 
-// Xóa voucher
+// ANCHOR: Xóa voucher
 exports.deleteVoucher = async (req, res) => {
     try {
         const voucher = await Voucher.findById(req.params.id);
@@ -162,30 +172,31 @@ exports.deleteVoucher = async (req, res) => {
             return res.status(404).json(createResponse(404, 'Không tìm thấy voucher', null));
         }
 
+        // WARNING: Thao tác xóa không thể hoàn tác
         await Voucher.deleteOne({ _id: req.params.id });
         res.json(createResponse(200, 'Xóa voucher thành công', null));
     } catch (error) {
+        // ERROR: Ghi log lỗi khi không thể xóa voucher
         console.error('Delete voucher error:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi xóa voucher', null));
     }
 };
 
-// Áp dụng voucher vào đơn hàng
+// ANCHOR: Áp dụng voucher vào đơn hàng
 exports.applyVoucher = async (req, res) => {
     try {
         const { code_voucher, total_amount } = req.body;
 
-        // Kiểm tra mã voucher
+        // IMPORTANT: Kiểm tra đầu vào
         if (!code_voucher) {
             return res.status(400).json(createResponse(400, 'Vui lòng cung cấp mã voucher', null));
         }
 
-        // Kiểm tra tổng tiền
         if (!total_amount || total_amount <= 0) {
             return res.status(400).json(createResponse(400, 'Tổng tiền không hợp lệ', null));
         }
 
-        // Tìm voucher theo mã code
+        // NOTE: Tìm voucher theo mã code
         const voucher = await Voucher.findOne({ code_voucher });
 
         // Kiểm tra voucher tồn tại
@@ -193,36 +204,36 @@ exports.applyVoucher = async (req, res) => {
             return res.status(404).json(createResponse(404, 'Không tìm thấy voucher với mã này', null));
         }
 
-        // Kiểm tra voucher còn active không
+        // WARNING: Kiểm tra các điều kiện của voucher
         if (voucher.status_voucher !== 'active') {
             return res.status(400).json(createResponse(400, 'Voucher đã hết hạn hoặc không khả dụng', null));
         }
 
-        // Kiểm tra còn số lượng không
         if (voucher.total_voucher <= 0) {
             return res.status(400).json(createResponse(400, 'Voucher đã hết số lượng', null));
         }
 
-        // Kiểm tra thời hạn sử dụng
+        // IMPORTANT: Kiểm tra thời hạn sử dụng
         const currentDate = new Date();
         if (currentDate < voucher.start_date_voucher || currentDate > voucher.end_date_voucher) {
             return res.status(400).json(createResponse(400, 'Voucher nằm ngoài thời hạn sử dụng', null));
         }
 
-        // Tính toán số tiền giảm
+        // NOTE: Tính toán số tiền giảm
         let discountAmount = voucher.voucher_value;
 
-        // Đảm bảo số tiền giảm không vượt quá tổng tiền
+        // OPTIMIZE: Có thể thêm logic giảm giá phức tạp hơn như % tổng giá trị
         if (discountAmount > total_amount) {
             discountAmount = total_amount;
         }
 
-        // Tính tổng tiền sau khi giảm
         const finalAmount = total_amount - discountAmount;
 
-        // Giảm số lượng voucher
+        // IMPORTANT: Giảm số lượng voucher sau khi sử dụng
         voucher.total_voucher -= 1;
         await voucher.save();
+
+        // TODO: Thêm lịch sử sử dụng voucher để tracking
 
         // Trả về kết quả
         res.json(createResponse(200, 'Áp dụng voucher thành công', {
@@ -234,7 +245,14 @@ exports.applyVoucher = async (req, res) => {
             final_amount: finalAmount
         }));
     } catch (error) {
+        // ERROR: Ghi log lỗi khi không thể áp dụng voucher
         console.error('Apply voucher error:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi áp dụng voucher', null));
     }
-}; 
+};
+
+// IDEA: Thêm tính năng lọc voucher theo trạng thái, ngày, giá trị
+// TODO: Thêm chức năng báo cáo thống kê việc sử dụng voucher
+// LINK: https://mongoosejs.com/docs/queries.html - Tài liệu về truy vấn Mongoose
+
+// END-SECTION

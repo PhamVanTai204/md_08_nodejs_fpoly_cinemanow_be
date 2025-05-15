@@ -8,17 +8,19 @@ const Payment = require('../models/payment');
 const createResponse = require('../utils/responseHelper');
 const mongoose = require('mongoose');
 
-// Lấy lịch sử đặt vé của người dùng
+// SECTION: Controller xử lý lịch sử đặt vé người dùng
 exports.getTransactionsByUser = async (req, res) => {
     try {
         const { user_id } = req.params;
 
-        // Kiểm tra user_id hợp lệ
+        // VALIDATE: Kiểm tra tính hợp lệ của user_id
+        // NOTE: Sử dụng mongoose.Types.ObjectId.isValid để đảm bảo ID có định dạng đúng
         if (!mongoose.Types.ObjectId.isValid(user_id)) {
             return res.status(400).json(createResponse(400, 'ID người dùng không hợp lệ', null));
         }
 
-        // Tìm tất cả vé của user và populate thông tin cần thiết
+        // ANCHOR: Truy vấn và liên kết dữ liệu vé của người dùng
+        // NOTE: Sử dụng populate để lấy đầy đủ thông tin liên quan đến vé
         const tickets = await Ticket.find({ user_id })
             .populate({
                 path: 'showtime_id',
@@ -36,15 +38,21 @@ exports.getTransactionsByUser = async (req, res) => {
             .populate('voucher_id')
             .sort({ createdAt: -1 });
 
+        // LINK: Tham khảo thêm về nested populate tại https://mongoosejs.com/docs/populate.html#deep-populate
+
         // Lấy thông tin thanh toán cho mỗi vé
         const ticketIds = tickets.map(ticket => ticket._id);
         const payments = await Payment.find({
             ticket_id: { $in: ticketIds }
-        }); // Không populate payment_method_id vì trường này không tồn tại trong schema
-
+        }); 
+        // FIXME: Không populate payment_method_id vì trường này không tồn tại trong schema
+        
+        // OPTIMIZE: Sử dụng Map để tối ưu hiệu suất truy vấn các thanh toán
         const paymentMap = new Map(payments.map(p => [p.ticket_id.toString(), p]));
 
-        // Định dạng lại dữ liệu đơn giản hơn
+        // TODO: Thêm xử lý phân trang cho danh sách vé khi số lượng lớn
+
+        // ANCHOR: Định dạng lại dữ liệu đơn giản hơn cho response
         const simplifiedTickets = tickets.map(ticket => {
             const payment = paymentMap.get(ticket._id.toString());
             const seats = ticket.seats.map(seat => seat.seat_id.seat_id).join(', ');
@@ -52,7 +60,7 @@ exports.getTransactionsByUser = async (req, res) => {
                 `${combo.combo_id.name_combo || combo.combo_id.name || 'Combo không xác định'} x${combo.quantity}`
             ).join(', ');
 
-            // Xác định phương thức thanh toán dựa vào payment.payment_method
+            // IMPORTANT: Xác định phương thức thanh toán dựa vào payment.payment_method
             let paymentMethodName = 'Chưa thanh toán';
             if (payment) {
                 if (payment.payment_method === 0) {
@@ -62,6 +70,7 @@ exports.getTransactionsByUser = async (req, res) => {
                 }
             }
 
+            // NOTE: Cấu trúc dữ liệu đã được đơn giản hóa để client dễ sử dụng
             return {
                 id: ticket._id,
                 ticket_code: ticket.ticket_id,
@@ -80,16 +89,20 @@ exports.getTransactionsByUser = async (req, res) => {
             };
         });
 
+        // DONE: Trả về dữ liệu lịch sử giao dịch của người dùng
         res.json(createResponse(200, null, simplifiedTickets));
     } catch (error) {
+        // ERROR: Lỗi khi lấy lịch sử đặt vé
         console.error('Get user transactions error:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi lấy lịch sử đặt vé', null));
     }
 };
+// END-SECTION
 
-// Tạo vé mới tại quầy
+// SECTION: Controller xử lý tạo vé mới tại quầy
 exports.createTicket = async (req, res) => {
     try {
+        // ANCHOR: Lấy dữ liệu từ request body
         const { 
             user_id, 
             showtime_id,
@@ -99,9 +112,11 @@ exports.createTicket = async (req, res) => {
             total_amount 
         } = req.body;
 
+        // DEBUG: Log thông tin vé đang được tạo
         console.log('Bắt đầu quá trình tạo vé...');
         console.log('Dữ liệu nhận được:', { user_id, showtime_id, seats, combos, voucher_id, total_amount });
 
+        // ANCHOR: Kiểm tra dữ liệu đầu vào
         // 1. Kiểm tra showtime tồn tại và lấy thông tin
         const showtime = await ShowTime.findById(showtime_id)
             .populate('movie_id')
@@ -113,10 +128,12 @@ exports.createTicket = async (req, res) => {
             });
 
         if (!showtime) {
+            // WARNING: Suất chiếu không tồn tại, có thể do ID không chính xác hoặc đã bị xóa
             console.log('Lỗi: Suất chiếu không tồn tại');
             return res.status(404).json(createResponse(404, 'Suất chiếu không tồn tại', null));
         }
 
+        // STATS: Thông tin suất chiếu đang được xử lý
         console.log('Thông tin suất chiếu:', {
             movie: showtime.movie_id.title,
             room: showtime.room_id.room_name,
@@ -143,6 +160,7 @@ exports.createTicket = async (req, res) => {
             return res.status(404).json(createResponse(404, 'Rạp chiếu không tồn tại', null));
         }
 
+        // HIGHLIGHT: Kiểm tra tính hợp lệ của ghế được chọn
         // 5. Kiểm tra tất cả ghế có tồn tại và thuộc phòng đó không
         const seatIds = seats.map(seat => seat.seat_id);
         const existingSeats = await Seat.find({
@@ -151,10 +169,12 @@ exports.createTicket = async (req, res) => {
         });
 
         if (existingSeats.length !== seats.length) {
+            // ERROR: Ghế không tồn tại hoặc không thuộc phòng này
             console.log('Lỗi: Một số ghế không tồn tại hoặc không thuộc phòng này');
             return res.status(400).json(createResponse(400, 'Một số ghế không tồn tại hoặc không thuộc phòng này', null));
         }
 
+        // IMPORTANT: Kiểm tra trạng thái đặt ghế
         // 6. Kiểm tra xem ghế đã được đặt chưa (bất kể người dùng nào)
         const bookedSeats = await Ticket.find({
             showtime_id,
@@ -162,6 +182,7 @@ exports.createTicket = async (req, res) => {
         });
 
         if (bookedSeats.length > 0) {
+            // WARNING: Ghế đã được đặt, cần thông báo cho người dùng
             console.log('Lỗi: Một số ghế đã được đặt bởi người khác');
             const bookedSeatIds = bookedSeats.flatMap(ticket => 
                 ticket.seats.map(seat => seat.seat_id.toString())
@@ -176,6 +197,7 @@ exports.createTicket = async (req, res) => {
             return res.status(400).json(createResponse(400, `Ghế ${bookedSeatDetails} đã được đặt bởi người khác`, null));
         }
 
+        // ANCHOR: Tạo vé mới sau khi đã kiểm tra các điều kiện
         // 7. Tạo vé mới
         const ticketData = {
             user_id,
@@ -191,8 +213,10 @@ exports.createTicket = async (req, res) => {
             ticket_id: `TICKET${Date.now()}` // Tạo mã vé unique
         };
 
+        // IDEA: Có thể thêm mã QR cho vé để dễ dàng kiểm tra tại rạp
         const newTicket = await Ticket.create(ticketData);
 
+        // DONE: Tạo vé thành công
         console.log('Tạo vé thành công:', {
             ticket_id: newTicket.ticket_id,
             total_amount: newTicket.total_amount,
@@ -202,7 +226,9 @@ exports.createTicket = async (req, res) => {
 
         res.status(201).json(createResponse(201, null, newTicket));
     } catch (error) {
+        // ERROR: Lỗi khi tạo vé
         console.error('Lỗi khi tạo vé:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi tạo vé', null));
     }
-}; 
+};
+// END-SECTION

@@ -5,9 +5,13 @@ const { updateRoomTotalSeats } = require('./room.controller');
 const mongoose = require('mongoose');
 const pusher = require('../utils/pusher');
 
-// Lấy tất cả ghế
+// SECTION: API quản lý ghế ngồi trong rạp chiếu phim
+// LINK: https://pusher.com/docs/channels/ - Sử dụng Pusher Channels để thông báo thay đổi realtime
+
+// ANCHOR: Lấy tất cả ghế
 exports.getAllSeats = async (req, res) => {
     try {
+        // NOTE: Populate thông tin phòng và rạp liên quan
         const seats = await Seat.find()
             .populate({
                 path: 'room_id',
@@ -22,9 +26,10 @@ exports.getAllSeats = async (req, res) => {
     }
 };
 
-// Lấy ghế theo ID
+// ANCHOR: Lấy ghế theo ID
 exports.getSeatById = async (req, res) => {
     try {
+        // NOTE: Populate thông tin phòng và rạp liên quan
         const seat = await Seat.findById(req.params.id)
             .populate({
                 path: 'room_id',
@@ -44,29 +49,29 @@ exports.getSeatById = async (req, res) => {
     }
 };
 
-// Tạo ghế mới
+// ANCHOR: Tạo ghế mới
 exports.createSeat = async (req, res) => {
     try {
         const { seat_id, room_id, seat_status, seat_type, price_seat, column_of_seat, row_of_seat } = req.body;
 
-        // Kiểm tra đầy đủ thông tin
+        // IMPORTANT: Kiểm tra đầy đủ thông tin đầu vào
         if (!seat_id || !room_id || !seat_type || !price_seat || !column_of_seat || !row_of_seat) {
             return res.status(400).json(createResponse(400, 'Vui lòng cung cấp đầy đủ thông tin', null));
         }
 
-        // Kiểm tra seat_id đã tồn tại
+        // NOTE: Kiểm tra seat_id đã tồn tại
         const existingSeat = await Seat.findOne({ seat_id });
         if (existingSeat) {
             return res.status(400).json(createResponse(400, 'Mã ghế đã tồn tại', null));
         }
 
-        // Kiểm tra phòng tồn tại
+        // NOTE: Kiểm tra phòng tồn tại
         const room = await Room.findById(room_id);
         if (!room) {
             return res.status(404).json(createResponse(404, 'Không tìm thấy phòng', null));
         }
 
-        // Kiểm tra ghế đã tồn tại trong phòng với vị trí tương tự
+        // WARNING: Kiểm tra ghế đã tồn tại trong phòng với vị trí tương tự
         const existingSeatPosition = await Seat.findOne({
             room_id,
             column_of_seat,
@@ -77,6 +82,7 @@ exports.createSeat = async (req, res) => {
             return res.status(400).json(createResponse(400, 'Vị trí ghế đã tồn tại trong phòng này', null));
         }
 
+        // NOTE: Tạo đối tượng ghế mới
         const newSeat = new Seat({
             seat_id,
             room_id,
@@ -87,12 +93,13 @@ exports.createSeat = async (req, res) => {
             row_of_seat
         });
 
+        // DONE: Lưu ghế vào cơ sở dữ liệu
         const savedSeat = await newSeat.save();
 
-        // Cập nhật số lượng ghế của phòng
+        // IMPORTANT: Cập nhật số lượng ghế của phòng
         const totalSeats = await updateRoomTotalSeats(room_id);
 
-        // Populate thông tin liên quan
+        // NOTE: Populate thông tin liên quan
         const populatedSeat = await Seat.findById(savedSeat._id)
             .populate({
                 path: 'room_id',
@@ -111,31 +118,32 @@ exports.createSeat = async (req, res) => {
     }
 };
 
-// Cập nhật ghế
+// ANCHOR: Cập nhật trạng thái ghế
+// HIGHLIGHT: Sử dụng Pusher để cập nhật realtime cho tất cả người dùng
 exports.updateSeatStatus = async (req, res) => {
     try {
         const { seat_status } = req.body;
         const id = req.params.id;
 
-        // Kiểm tra xem trạng thái có hợp lệ không
+        // IMPORTANT: Kiểm tra xem trạng thái có hợp lệ không
         if (!['available', 'booked', 'unavailable', 'selecting'].includes(seat_status)) {
             return res.status(400).json(createResponse(400, "Trạng thái ghế không hợp lệ", null));
         }
 
-        // Kiểm tra ghế tồn tại
+        // NOTE: Kiểm tra ghế tồn tại
         const seat = await Seat.findById(id);
         if (!seat) {
             return res.status(404).json(createResponse(404, 'Không tìm thấy ghế', null));
         }
 
-        // Lấy room_id từ ghế
+        // NOTE: Lấy room_id từ ghế
         const { room_id } = seat;
 
-        // Cập nhật trạng thái ghế
+        // NOTE: Cập nhật trạng thái ghế
         seat.seat_status = seat_status;
         const updatedSeat = await seat.save();
 
-        // Populate thông tin liên quan
+        // NOTE: Populate thông tin liên quan
         const populatedSeat = await Seat.findById(updatedSeat._id)
             .populate({
                 path: 'room_id',
@@ -144,7 +152,7 @@ exports.updateSeatStatus = async (req, res) => {
                 }
             });
 
-        // Gửi thông báo qua Pusher
+        // IMPORTANT: Gửi thông báo qua Pusher để cập nhật realtime
         pusher.trigger(`room-${room_id}`, 'seat-status-changed', {
             seat_id: seat.seat_id,
             status: seat_status,
@@ -158,9 +166,10 @@ exports.updateSeatStatus = async (req, res) => {
     }
 };
 
-// Xóa ghế
+// ANCHOR: Xóa ghế
 exports.deleteSeat = async (req, res) => {
     try {
+        // NOTE: Tìm ghế cần xóa
         const seat = await Seat.findById(req.params.id);
         if (!seat) {
             return res.status(404).json(createResponse(404, 'Không tìm thấy ghế', null));
@@ -169,7 +178,7 @@ exports.deleteSeat = async (req, res) => {
         const roomId = seat.room_id;
         await Seat.deleteOne({ _id: req.params.id });
 
-        // Cập nhật số lượng ghế của phòng
+        // IMPORTANT: Cập nhật số lượng ghế của phòng
         const totalSeats = await updateRoomTotalSeats(roomId);
 
         res.json(createResponse(200, 'Xóa ghế thành công', { room_total_seats: totalSeats }));
@@ -179,24 +188,27 @@ exports.deleteSeat = async (req, res) => {
     }
 };
 
+// ANCHOR: Thêm nhiều ghế cùng lúc
 exports.addMultipleSeats = async (req, res) => {
     const { room_id, rows, cols, price_seat } = req.body;
 
-    // Bắt buộc: room_id, rows, cols, price_seat
+    // IMPORTANT: Kiểm tra thông tin bắt buộc
     if (!room_id || !rows || !cols || !price_seat) {
         return res.status(400).json(createResponse(400, "Thiếu thông tin bắt buộc", null));
     }
 
-    // Mặc định:
+    // NOTE: Thiết lập các giá trị mặc định
     const defaultSeatStatus = 'available';
     const defaultSeatType = 'standard';
 
     try {
+        // NOTE: Kiểm tra phòng tồn tại
         const room = await Room.findById(room_id);
         if (!room) {
             return res.status(404).json(createResponse(404, "Không tìm thấy phòng", null));
         }
 
+        // SECTION: Tạo mảng ghế mới theo hàng và cột
         let newSeats = [];
         for (let i = 0; i < rows; i++) {
             for (let j = 0; j < cols; j++) {
@@ -216,7 +228,7 @@ exports.addMultipleSeats = async (req, res) => {
             }
         }
 
-        // Kiểm tra ghế đã tồn tại trong phòng
+        // IMPORTANT: Kiểm tra và lọc ghế đã tồn tại
         const existingSeats = await Seat.find({ room_id });
         const existingSeatIds = new Set(existingSeats.map(s => s.seat_id));
 
@@ -226,6 +238,7 @@ exports.addMultipleSeats = async (req, res) => {
             return res.status(400).json(createResponse(400, "Tất cả các ghế đã tồn tại trong phòng", null));
         }
 
+        // DONE: Thêm nhiều ghế cùng lúc vào cơ sở dữ liệu
         await Seat.insertMany(newSeats);
         res.status(201).json(createResponse(201, `Thêm ${newSeats.length} ghế thành công`, null));
     } catch (error) {
@@ -234,22 +247,22 @@ exports.addMultipleSeats = async (req, res) => {
     }
 };
 
-
-
+// ANCHOR: Xóa nhiều ghế cùng lúc
 exports.deleteMultipleSeats = async (req, res) => {
     const { room_id, seat_ids } = req.body;
 
     try {
+        // IMPORTANT: Kiểm tra điều kiện xóa hợp lệ
         if (!room_id && (!seat_ids || seat_ids.length === 0)) {
             return res.status(400).json(createResponse(400, "Cần cung cấp room_id hoặc danh sách seat_ids", null));
         }
 
         let deleteResult;
         if (room_id) {
-            // Xóa tất cả ghế trong một phòng
+            // NOTE: Xóa tất cả ghế trong một phòng
             deleteResult = await Seat.deleteMany({ room_id });
         } else if (seat_ids) {
-            // Xóa danh sách ghế theo seat_id
+            // NOTE: Xóa danh sách ghế theo seat_id
             deleteResult = await Seat.deleteMany({ seat_id: { $in: seat_ids } });
         }
 
@@ -264,16 +277,19 @@ exports.deleteMultipleSeats = async (req, res) => {
     }
 };
 
-
+// ANCHOR: Cập nhật thông tin nhiều ghế cùng lúc
 exports.updateMultipleSeatsInfo = async (req, res) => {
     const { _ids, seat_type, price_seat } = req.body;
 
+    // IMPORTANT: Kiểm tra danh sách ID hợp lệ
     if (!_ids || !Array.isArray(_ids) || _ids.length === 0) {
         return res.status(400).json(createResponse(400, "Danh sách _ids không hợp lệ", null));
     }
 
+    // SECTION: Xây dựng dữ liệu cập nhật
     const updateData = {};
     if (seat_type) {
+        // WARNING: Kiểm tra loại ghế hợp lệ
         if (!['standard', 'vip', 'couple'].includes(seat_type)) {
             return res.status(400).json(createResponse(400, "seat_type không hợp lệ", null));
         }
@@ -283,11 +299,13 @@ exports.updateMultipleSeatsInfo = async (req, res) => {
         updateData.price_seat = price_seat;
     }
 
+    // NOTE: Kiểm tra có trường nào được cập nhật không
     if (Object.keys(updateData).length === 0) {
         return res.status(400).json(createResponse(400, "Không có trường nào được cập nhật", null));
     }
 
     try {
+        // NOTE: Chuyển đổi mảng ID sang ObjectId MongoDB
         const objectIds = _ids.map(id => new mongoose.Types.ObjectId(id));
         const updateResult = await Seat.updateMany(
             { _id: { $in: objectIds } },
@@ -298,6 +316,7 @@ exports.updateMultipleSeatsInfo = async (req, res) => {
             return res.status(404).json(createResponse(404, "Không tìm thấy ghế để cập nhật", null));
         }
 
+        // NOTE: Lấy thông tin ghế đã cập nhật
         const updatedSeats = await Seat.find({ _id: { $in: objectIds } });
 
         res.json(createResponse(200, `Cập nhật thông tin ${updateResult.modifiedCount} ghế thành công`, updatedSeats));
@@ -307,13 +326,13 @@ exports.updateMultipleSeatsInfo = async (req, res) => {
     }
 };
 
-
-// Thêm nhiều ghế vào phòng
+// ANCHOR: Tạo nhiều ghế cho phòng chiếu
+// REVIEW: Phương thức này cần xem xét hiệu suất khi số lượng ghế lớn
 exports.createMultipleSeats = async (req, res) => {
     try {
         const { room_id, rows, columns, seat_types, prices } = req.body;
 
-        // Kiểm tra room_id có tồn tại
+        // IMPORTANT: Kiểm tra phòng tồn tại
         const room = await Room.findById(room_id);
         if (!room) {
             return res.status(404).json({
@@ -323,34 +342,35 @@ exports.createMultipleSeats = async (req, res) => {
             });
         }
 
-        // Xóa tất cả ghế cũ trong phòng (nếu có)
+        // NOTE: Xóa tất cả ghế cũ trong phòng (nếu có)
         await Seat.deleteMany({ room_id });
 
+        // SECTION: Tạo mảng ghế mới
         const seats = [];
         const rowLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-        // Tạo ghế theo hàng và cột
+        // NOTE: Tạo ghế theo hàng và cột
         for (let i = 0; i < rows; i++) {
             for (let j = 0; j < columns; j++) {
                 const rowLabel = rowLetters[i];
                 const columnLabel = (j + 1).toString().padStart(2, '0');
 
-                // Xác định loại ghế và giá dựa vào vị trí
+                // HIGHLIGHT: Xác định loại ghế và giá dựa vào vị trí
                 let seat_type = 'standard';
                 let price = prices.standard || 50000;
 
-                // Ghế VIP thường ở giữa phòng
+                // NOTE: Ghế VIP thường ở giữa phòng
                 if (i >= Math.floor(rows * 0.3) && i < Math.floor(rows * 0.7) &&
                     j >= Math.floor(columns * 0.3) && j < Math.floor(columns * 0.7)) {
                     seat_type = 'vip';
                     price = prices.vip || 70000;
                 }
 
-                // Ghế đôi thường ở cuối phòng
+                // NOTE: Ghế đôi thường ở cuối phòng
                 if (i >= Math.floor(rows * 0.7) && j % 2 === 0 && j < columns - 1) {
                     seat_type = 'couple';
                     price = prices.couple || 120000;
-                    // Bỏ qua ghế tiếp theo vì ghế đôi chiếm 2 vị trí
+                    // IMPORTANT: Bỏ qua ghế tiếp theo vì ghế đôi chiếm 2 vị trí
                     j++;
                 }
 
@@ -368,10 +388,10 @@ exports.createMultipleSeats = async (req, res) => {
             }
         }
 
-        // Lưu tất cả ghế vào database
+        // DONE: Lưu tất cả ghế vào database
         const createdSeats = await Seat.insertMany(seats);
 
-        // Cập nhật tổng số ghế trong phòng
+        // IMPORTANT: Cập nhật tổng số ghế trong phòng
         room.total_seat = createdSeats.length;
         await room.save();
 
@@ -394,19 +414,21 @@ exports.createMultipleSeats = async (req, res) => {
     }
 };
 
-// Thêm endpoint mới cho việc cập nhật trạng thái tạm thời (khi người dùng đang chọn ghế)
+// ANCHOR: Đánh dấu ghế đang được chọn (tạm thời)
+// HIGHLIGHT: Sử dụng Pusher để thông báo realtime cho tất cả người dùng
 exports.temporarySelectSeats = async (req, res) => {
     const { seat_ids, room_id, user_id, showtime_id } = req.body;
 
     try {
+        // IMPORTANT: Kiểm tra tham số đầu vào
         if (!seat_ids || !Array.isArray(seat_ids) || seat_ids.length === 0 || !room_id || !user_id) {
             return res.status(400).json(createResponse(400, "Cần cung cấp danh sách seat_ids, room_id và user_id", null));
         }
 
-        // Tìm các ghế cần cập nhật
+        // NOTE: Tìm các ghế cần cập nhật
         const seats = await Seat.find({ seat_id: { $in: seat_ids }, room_id });
 
-        // Kiểm tra xem ghế có đang được chọn bởi người khác không
+        // WARNING: Kiểm tra xem ghế có đang được chọn bởi người khác không
         const unavailableSeats = seats.filter(seat =>
             seat.seat_status === 'selecting' || seat.seat_status === 'booked'
         );
@@ -418,7 +440,7 @@ exports.temporarySelectSeats = async (req, res) => {
             ));
         }
 
-        // Cập nhật trạng thái thành 'selecting'
+        // DONE: Cập nhật trạng thái thành 'selecting'
         await Seat.updateMany(
             { seat_id: { $in: seat_ids }, room_id },
             {
@@ -428,16 +450,16 @@ exports.temporarySelectSeats = async (req, res) => {
             }
         );
          
-        // Tạo chuỗi xác định kênh Pusher
+        // NOTE: Tạo chuỗi xác định kênh Pusher
         let channelName = `room-${room_id}`;
         
-        // Nếu có showtime_id, thêm vào tên kênh để kênh chỉ cập nhật cho suất chiếu cụ thể
+        // NOTE: Nếu có showtime_id, thêm vào tên kênh để kênh chỉ cập nhật cho suất chiếu cụ thể
         if (showtime_id) {
             channelName = `room-${room_id}-${showtime_id}`;
             console.log(`Sử dụng kênh Pusher cho suất chiếu: ${channelName}`);
         }
  
-        // Gửi thông báo qua Pusher
+        // IMPORTANT: Gửi thông báo qua Pusher
         pusher.trigger(channelName, 'seats-selecting', {
             seat_ids,
             user_id,
@@ -451,29 +473,32 @@ exports.temporarySelectSeats = async (req, res) => {
     }
 };
 
-// Thêm endpoint giải phóng ghế khi hết thời gian chọn
+// ANCHOR: Giải phóng ghế khi hết thời gian chọn
+// HIGHLIGHT: Sử dụng Pusher để thông báo realtime cho tất cả người dùng
 exports.releaseSeats = async (req, res) => {
     const { seat_ids, room_id, user_id, showtime_id } = req.body;
 
     try {
         console.log("Yêu cầu giải phóng ghế:", { seat_ids, room_id, user_id, showtime_id });
         
+        // IMPORTANT: Kiểm tra tham số đầu vào
         if (!seat_ids || !Array.isArray(seat_ids) || seat_ids.length === 0) {
             return res.status(400).json(createResponse(400, "Cần cung cấp danh sách seat_ids", null));
         }
 
-         if (!room_id) {
+        if (!room_id) {
             return res.status(400).json(createResponse(400, "Cần cung cấp room_id", null));
         }
 
-        // Xác định điều kiện lọc linh hoạt hơn, hỗ trợ cả seat_id và _id
+        // SECTION: Xác định điều kiện lọc linh hoạt hơn
+        // NOTE: Xác định điều kiện lọc linh hoạt hơn, hỗ trợ cả seat_id và _id
         let filterCondition;
         
-        // Trường hợp 1: Kiểm tra seat_ids có phải ObjectId (có thể là _id từ MongoDB)
+        // NOTE: Trường hợp 1: Kiểm tra seat_ids có phải ObjectId (có thể là _id từ MongoDB)
         if (seat_ids.every(id => mongoose.Types.ObjectId.isValid(id))) {
             console.log("Sử dụng _id để tìm ghế");
             
-            // Nếu có user_id, chỉ giải phóng ghế của user đó
+            // NOTE: Nếu có user_id, chỉ giải phóng ghế của user đó
             filterCondition = user_id 
                 ? { 
                     $or: [
@@ -490,7 +515,7 @@ exports.releaseSeats = async (req, res) => {
         } else {
             console.log("Sử dụng seat_id để tìm ghế");
             
-            // Nếu có user_id, chỉ giải phóng ghế của user đó
+            // NOTE: Nếu có user_id, chỉ giải phóng ghế của user đó
             filterCondition = user_id 
                 ? { seat_id: { $in: seat_ids }, room_id, selected_by: user_id, seat_status: 'selecting' }
                 : { seat_id: { $in: seat_ids }, room_id, seat_status: 'selecting' };
@@ -498,8 +523,7 @@ exports.releaseSeats = async (req, res) => {
         
         console.log("Filter condition:", JSON.stringify(filterCondition));
         
- 
-        // Cập nhật trạng thái trở lại 'available'
+        // DONE: Cập nhật trạng thái trở lại 'available'
         const updateResult = await Seat.updateMany(
             filterCondition,
             {
@@ -511,23 +535,23 @@ exports.releaseSeats = async (req, res) => {
          
         console.log("Kết quả cập nhật:", updateResult);
         
-
+        // NOTE: Xử lý khi không tìm thấy ghế cần giải phóng
         if (updateResult.modifiedCount === 0) {
-            // Nếu không tìm thấy ghế cần giải phóng, vẫn trả về thành công để không làm gián đoạn quy trình
+            // NOTE: Nếu không tìm thấy ghế cần giải phóng, vẫn trả về thành công để không làm gián đoạn quy trình
             console.log("Không tìm thấy ghế cần giải phóng với điều kiện đã cho");
             return res.json(createResponse(200, "Không tìm thấy ghế cần giải phóng", null));
         }
 
-        // Tạo chuỗi xác định kênh Pusher
+        // NOTE: Tạo chuỗi xác định kênh Pusher
         let channelName = `room-${room_id}`;
         
-        // Nếu có showtime_id, thêm vào tên kênh để kênh chỉ cập nhật cho suất chiếu cụ thể
+        // NOTE: Nếu có showtime_id, thêm vào tên kênh để kênh chỉ cập nhật cho suất chiếu cụ thể
         if (showtime_id) {
             channelName = `room-${room_id}-${showtime_id}`;
             console.log(`Sử dụng kênh Pusher cho suất chiếu: ${channelName}`);
         }
 
-        // Gửi thông báo qua Pusher
+        // IMPORTANT: Gửi thông báo qua Pusher
         pusher.trigger(channelName, 'seats-released', {
             seat_ids,
             user_id,
@@ -541,32 +565,34 @@ exports.releaseSeats = async (req, res) => {
     }
 };
 
-// Thêm endpoint để thông báo bắt đầu thanh toán
+// ANCHOR: Thông báo bắt đầu thanh toán
+// HIGHLIGHT: Sử dụng Pusher để thông báo realtime cho tất cả người dùng
 exports.initiatePayment = async (req, res) => {
     const { seat_ids, room_id, user_id, showtime_id } = req.body;
 
     try {
+        // IMPORTANT: Kiểm tra tham số đầu vào
         if (!seat_ids || !Array.isArray(seat_ids) || seat_ids.length === 0 || !room_id || !user_id) {
             return res.status(400).json(createResponse(400, "Cần cung cấp danh sách seat_ids, room_id và user_id", null));
         }
 
-        // Tạo chuỗi xác định kênh Pusher
+        // NOTE: Tạo chuỗi xác định kênh Pusher
         let channelName = `room-${room_id}`;
         
-        // Nếu có showtime_id, thêm vào tên kênh để kênh chỉ cập nhật cho suất chiếu cụ thể
+        // NOTE: Nếu có showtime_id, thêm vào tên kênh để kênh chỉ cập nhật cho suất chiếu cụ thể
         if (showtime_id) {
             channelName = `room-${room_id}-${showtime_id}`;
             console.log(`Sử dụng kênh Pusher cho suất chiếu: ${channelName}`);
         }
         
-        // Gửi thông báo qua Pusher
+        // IMPORTANT: Gửi thông báo qua Pusher
         pusher.trigger(channelName, 'payment-initiated', {
             seat_ids,
             user_id,
             status: 'payment_initiated'
         });
         
-        // Gửi thông báo cũng đến kênh phòng chung để đảm bảo không bỏ lỡ ai
+        // NOTE: Gửi thông báo cũng đến kênh phòng chung để đảm bảo không bỏ lỡ ai
         if (showtime_id) {
             pusher.trigger(`room-${room_id}`, 'payment-initiated', {
                 seat_ids,
@@ -583,15 +609,16 @@ exports.initiatePayment = async (req, res) => {
     }
 };
 
-// Thêm hàm cleanup tự động cho ghế đang chọn
-// Chạy mỗi 2 phút để giải phóng các ghế bị treo
+// SECTION: Tác vụ tự động giải phóng ghế
+// IMPORTANT: Chạy mỗi 2 phút để giải phóng các ghế bị treo
+// EXPERIMENTAL: Tác vụ tự động chạy ngầm
 setInterval(async () => {
     try {
         console.log('Chạy tác vụ tự động giải phóng ghế bị treo');
-        const timeoutMinutes = 5; // Thời gian timeout 5 phút
+        const timeoutMinutes = 5; // NOTE: Thời gian timeout 5 phút
         const timeoutThreshold = new Date(Date.now() - timeoutMinutes * 60 * 1000);
         
-        // Tìm tất cả ghế đang ở trạng thái selecting và đã quá thời gian
+        // NOTE: Tìm tất cả ghế đang ở trạng thái selecting và đã quá thời gian
         const staleSeatSelections = await Seat.find({
             seat_status: 'selecting',
             selection_time: { $lt: timeoutThreshold }
@@ -600,7 +627,7 @@ setInterval(async () => {
         if (staleSeatSelections.length > 0) {
             console.log(`Tìm thấy ${staleSeatSelections.length} ghế bị treo cần giải phóng`);
             
-            // Tạo danh sách ghế cần giải phóng theo phòng
+            // NOTE: Tạo danh sách ghế cần giải phóng theo phòng
             const seatsByRoom = staleSeatSelections.reduce((groups, seat) => {
                 const roomId = seat.room_id.toString();
                 if (!groups[roomId]) {
@@ -610,9 +637,10 @@ setInterval(async () => {
                 return groups;
             }, {});
             
-            // Giải phóng ghế theo từng phòng
+            // SECTION: Giải phóng ghế theo từng phòng
             for (const [roomId, seats] of Object.entries(seatsByRoom)) {
                 const seatIds = seats.map(seat => seat.seat_id);
+                // DONE: Cập nhật trạng thái ghế thành available
                 await Seat.updateMany(
                     { seat_id: { $in: seatIds }, room_id: roomId },
                     { 
@@ -622,7 +650,7 @@ setInterval(async () => {
                     }
                 );
                 
-                // Gửi thông báo qua Pusher
+                // IMPORTANT: Gửi thông báo qua Pusher
                 pusher.trigger(`room-${roomId}`, 'seats-released', {
                     seat_ids: seatIds,
                     status: 'available'
@@ -636,4 +664,9 @@ setInterval(async () => {
     } catch (error) {
         console.error('Lỗi khi chạy tác vụ tự động giải phóng ghế:', error);
     }
-}, 2 * 60 * 1000); // Chạy mỗi 2 phút
+}, 2 * 60 * 1000); // STATS: Chạy mỗi 2 phút
+
+// TODO: Thêm API lấy danh sách các ghế đang được chọn theo phòng và suất chiếu
+// TODO: Thêm xác thực và kiểm tra quyền khi thực hiện các thao tác quản lý ghế
+// IDEA: Lưu lịch sử thay đổi trạng thái ghế để theo dõi hành vi người dùng
+// OPTIMIZE: Cần tối ưu hóa truy vấn đối với phòng có nhiều ghế
