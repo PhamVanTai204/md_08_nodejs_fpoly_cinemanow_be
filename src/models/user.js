@@ -42,7 +42,13 @@ const userSchema = db.mongoose.Schema({
   role: {
     type: Number, // Đã sửa lỗi chính tả
     required: true,
+  },
+  cinema_id: {
+    type: db.mongoose.Schema.Types.ObjectId,
+    ref: 'Cinema',
+    required: false,
   }
+
 
 }, { timestamps: true });
 

@@ -221,6 +221,8 @@ exports.registerWebByLocation = async (req, res) => {
       password: hashedPassword,
       url_image,
       role,
+      cinema_id: cinema._id ,
+      location: cinema.cinema_name,
       // Có thể gán thêm `cinema_id: cinema._id` nếu muốn ràng buộc người dùng với rạp
     });
 
