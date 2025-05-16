@@ -141,7 +141,9 @@ exports.loginWebByLocation = async (req, res) => {
     // STEP 2: Tìm người dùng
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json(createResponse(404, 'Email không tồn tại', null));
-
+      if (!user.cinema_id || user.cinema_id.toString() !== cinema._id.toString()) {
+  return res.status(403).json(createResponse(403, 'Tài khoản không thuộc rạp này', null));
+}
     // STEP 3: Kiểm tra mật khẩu
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json(createResponse(401, 'Mật khẩu không chính xác', null));
