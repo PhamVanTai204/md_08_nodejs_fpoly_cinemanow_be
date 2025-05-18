@@ -9,6 +9,31 @@ const createResponse = require('../utils/responseHelper');
 const mongoose = require('mongoose');
 const { getRoleName } = require('../utils/role_hepler');
 const Cinema = require('../models/cinema'); // Đảm bảo đã import model Cinema
+// ANCHOR: Lấy danh sách người dùng theo role và cinema_id
+exports.getUsersByRoleAndCinema = async (req, res) => {
+  const { role, cinema_id } = req.query;
+
+  // VALIDATION: Kiểm tra role và cinema_id
+  if (role === undefined || isNaN(role)) {
+    return res.status(400).json(createResponse(400, 'Role không hợp lệ', null));
+  }
+
+  if (!cinema_id || !mongoose.Types.ObjectId.isValid(cinema_id)) {
+    return res.status(400).json(createResponse(400, 'cinema_id không hợp lệ', null));
+  }
+
+  try {
+    const users = await User.find({
+      role: Number(role),
+      cinema_id: cinema_id
+    }).select('-password -__v'); // Không trả về password và __v
+
+    return res.status(200).json(createResponse(200, null, users));
+  } catch (error) {
+    return res.status(500).json(createResponse(500, 'Lỗi server khi lấy danh sách người dùng', error.message));
+  }
+};
+
 // ANCHOR: Xóa người dùng theo ID
 exports.deleteUser = async (req, res) => {
   const { id } = req.params;
@@ -141,9 +166,9 @@ exports.loginWebByLocation = async (req, res) => {
     // STEP 2: Tìm người dùng
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json(createResponse(404, 'Email không tồn tại', null));
-      if (!user.cinema_id || user.cinema_id.toString() !== cinema._id.toString()) {
-  return res.status(403).json(createResponse(403, 'Tài khoản không thuộc rạp này', null));
-}
+    if (!user.cinema_id || user.cinema_id.toString() !== cinema._id.toString()) {
+      return res.status(403).json(createResponse(403, 'Tài khoản không thuộc rạp này', null));
+    }
     // STEP 3: Kiểm tra mật khẩu
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json(createResponse(401, 'Mật khẩu không chính xác', null));
@@ -223,7 +248,7 @@ exports.registerWebByLocation = async (req, res) => {
       password: hashedPassword,
       url_image,
       role,
-      cinema_id: cinema._id ,
+      cinema_id: cinema._id,
       location: cinema.cinema_name,
       // Có thể gán thêm `cinema_id: cinema._id` nếu muốn ràng buộc người dùng với rạp
     });

@@ -5,7 +5,7 @@ const auth = require('../middleware/auth'); // Middleware xác thực
 
 router.post('/reg', uc.reg);
 router.post('/login', uc.login);
-router.post('/loginWebByLocation',uc.loginWebByLocation)
+router.post('/loginWebByLocation', uc.loginWebByLocation)
 router.post('/registerWebByLocation', uc.registerWebByLocation);
 
 router.post('/forgotpassword', uc.forgotPassword);
@@ -27,4 +27,6 @@ router.post('/logout', auth, uc.logout);
 router.post('/logout-all', auth, uc.logoutAll);
 
 router.delete('/deleteUser/:id', uc.deleteUser);
+
+router.get('/users/by-role-and-cinema', userController.getUsersByRoleAndCinema);
 module.exports = router;
