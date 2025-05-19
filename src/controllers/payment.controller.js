@@ -91,7 +91,7 @@ exports.addPayment = async (req, res) => {
 
         // DONE: Lưu thanh toán vào cơ sở dữ liệu
         await newPayment.save();
-        
+
         // NOTE: Populate thông tin vé để trả về chi tiết đầy đủ
         const populatedTicket = await Ticket.findById(ticket_id)
             .populate('user_id')
@@ -117,15 +117,15 @@ exports.addPayment = async (req, res) => {
 // ANCHOR: Lấy danh sách thanh toán với phân trang và tìm kiếm
 exports.getAllPayments = async (req, res) => {
     try {
-        // NOTE: Xử lý tham số phân trang và tìm kiếm
+        // Xử lý tham số phân trang và tìm kiếm
         let { page, limit, search } = req.query;
         page = parseInt(page) || 1;
         limit = parseInt(limit) || 10;
         const skip = (page - 1) * limit;
 
-        // HIGHLIGHT: Sử dụng MongoDB Aggregation Framework để lấy dữ liệu phức tạp
+        // Sử dụng MongoDB Aggregation Framework
         const aggregate = Payment.aggregate([
-            // SECTION: Join với bảng tickets
+            // Join với bảng tickets
             {
                 $lookup: {
                     from: 'tickets',
@@ -135,7 +135,8 @@ exports.getAllPayments = async (req, res) => {
                 }
             },
             { $unwind: '$ticket' },
-            // SECTION: Join với bảng users
+
+            // Join với bảng users
             {
                 $lookup: {
                     from: 'users',
@@ -145,20 +146,185 @@ exports.getAllPayments = async (req, res) => {
                 }
             },
             { $unwind: '$ticket.user' },
-            // SECTION: Lọc theo điều kiện tìm kiếm nếu có
+
+            // Join với bảng showtimes
             {
-                $match: search ? { 'ticket.user.email': { $regex: search, $options: 'i' } } : {}
+                $lookup: {
+                    from: 'showtimes',
+                    localField: 'ticket.showtime_id',
+                    foreignField: '_id',
+                    as: 'ticket.showtime'
+                }
             },
-            // NOTE: Sắp xếp từ mới nhất đến cũ nhất
+            { $unwind: '$ticket.showtime' },
+
+            // Join với bảng films (movies)
+            {
+                $lookup: {
+                    from: 'films', // hoặc 'movies' tùy theo tên collection của bạn
+                    localField: 'ticket.showtime.movie_id',
+                    foreignField: '_id',
+                    as: 'ticket.showtime.movie'
+                }
+            },
+            { $unwind: '$ticket.showtime.movie' },
+
+            // Join với bảng rooms
+            {
+                $lookup: {
+                    from: 'rooms',
+                    localField: 'ticket.showtime.room_id',
+                    foreignField: '_id',
+                    as: 'ticket.showtime.room'
+                }
+            },
+            { $unwind: '$ticket.showtime.room' },
+
+            // Join với bảng cinemas (thông qua room)
+            {
+                $lookup: {
+                    from: 'cinemas',
+                    localField: 'ticket.showtime.room.cinema_id',
+                    foreignField: '_id',
+                    as: 'ticket.showtime.room.cinema'
+                }
+            },
+            { $unwind: '$ticket.showtime.room.cinema' },
+
+            // Join với bảng seats
+            {
+                $lookup: {
+                    from: 'seats',
+                    localField: 'ticket.seats.seat_id',
+                    foreignField: '_id',
+                    as: 'ticket.seatDetails'
+                }
+            },
+
+            // Join với bảng combos
+            {
+                $lookup: {
+                    from: 'combos',
+                    localField: 'ticket.combos.combo_id',
+                    foreignField: '_id',
+                    as: 'ticket.comboDetails'
+                }
+            },
+
+            // Lọc theo điều kiện tìm kiếm
+            {
+                $match: search ? {
+                    $or: [
+                        { 'ticket.user.email': { $regex: search, $options: 'i' } },
+                        { 'payment_id': { $regex: search, $options: 'i' } },
+                        { 'ticket.showtime.room.cinema.cinema_name': { $regex: search, $options: 'i' } },
+                        { 'ticket.showtime.movie.title': { $regex: search, $options: 'i' } } // Thêm tìm kiếm theo tên phim
+                    ]
+                } : {}
+            },
+
+            // Sắp xếp từ mới nhất đến cũ nhất
             {
                 $sort: { createdAt: -1 }
             },
-            // SECTION: Phân trang và tính tổng số bản ghi
+
+            // Phân trang và tính tổng số bản ghi
             {
                 $facet: {
                     data: [
                         { $skip: skip },
-                        { $limit: limit }
+                        { $limit: limit },
+                        // Projection để định dạng dữ liệu trả về
+                        {
+                            $project: {
+                                _id: 1,
+                                payment_id: 1,
+                                payment_method: 1,
+                                status_order: 1,
+                                vnp_TransactionNo: 1,
+                                vnp_ResponseCode: 1,
+                                vnp_BankCode: 1,
+                                vnp_PayDate: 1,
+                                createdAt: 1,
+                                updatedAt: 1,
+                                ticket: {
+                                    _id: '$ticket._id',
+                                    ticket_id: '$ticket.ticket_id',
+                                    total_amount: '$ticket.total_amount',
+                                    status: '$ticket.status',
+                                    createdAt: '$ticket.createdAt',
+                                    updatedAt: '$ticket.updatedAt',
+                                    user: '$ticket.user',
+                                    showtime: {
+                                        _id: '$ticket.showtime._id',
+                                        showtime_id: '$ticket.showtime.showtime_id',
+                                        start_time: '$ticket.showtime.start_time',
+                                        end_time: '$ticket.showtime.end_time',
+                                        show_date: '$ticket.showtime.show_date',
+                                        movie: { // Thêm thông tin phim
+                                            _id: '$ticket.showtime.movie._id',
+                                            title: '$ticket.showtime.movie.title',
+                                            image_film: '$ticket.showtime.movie.image_film',
+                                            duration: '$ticket.showtime.movie.duration',
+                                            age_limit: '$ticket.showtime.movie.age_limit'
+                                        },
+                                        room: {
+                                            _id: '$ticket.showtime.room._id',
+                                            room_name: '$ticket.showtime.room.room_name',
+                                            room_style: '$ticket.showtime.room.room_style',
+                                            cinema: '$ticket.showtime.room.cinema'
+                                        }
+                                    },
+                                    seats: {
+                                        $map: {
+                                            input: '$ticket.seats',
+                                            as: 'seat',
+                                            in: {
+                                                seat_id: '$$seat.seat_id',
+                                                price: '$$seat.price',
+                                                seatDetails: {
+                                                    $arrayElemAt: [
+                                                        {
+                                                            $filter: {
+                                                                input: '$ticket.seatDetails',
+                                                                as: 'sd',
+                                                                cond: { $eq: ['$$sd._id', '$$seat.seat_id'] }
+                                                            }
+                                                        },
+                                                        0
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    },
+                                    combos: {
+                                        $map: {
+                                            input: '$ticket.combos',
+                                            as: 'combo',
+                                            in: {
+                                                combo_id: '$$combo.combo_id',
+                                                name_combo: '$$combo.name_combo',
+                                                quantity: '$$combo.quantity',
+                                                price: '$$combo.price',
+                                                comboDetails: {
+                                                    $arrayElemAt: [
+                                                        {
+                                                            $filter: {
+                                                                input: '$ticket.comboDetails',
+                                                                as: 'cd',
+                                                                cond: { $eq: ['$$cd._id', '$$combo.combo_id'] }
+                                                            }
+                                                        },
+                                                        0
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    },
+                                    voucher_id: '$ticket.voucher_id'
+                                }
+                            }
+                        }
                     ],
                     total: [
                         { $count: 'count' }
@@ -167,15 +333,15 @@ exports.getAllPayments = async (req, res) => {
             }
         ]);
 
-        // DONE: Thực thi truy vấn
+        // Thực thi truy vấn
         const result = await aggregate.exec();
 
-        // NOTE: Xử lý kết quả để trả về
+        // Xử lý kết quả
         const payments = result[0].data;
         const totalPayments = result[0].total[0]?.count || 0;
         const totalPages = Math.ceil(totalPayments / limit);
 
-        // NOTE: Trả về kết quả với thông tin phân trang
+        // Trả về kết quả
         res.status(200).json(createResponse(200, null, {
             payments,
             totalPayments,
