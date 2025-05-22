@@ -391,7 +391,24 @@ exports.getSeatsByRoom = async (req, res) => {
         }
 
         // NOTE: Lấy và sắp xếp danh sách ghế theo hàng và cột
-        const seats = await Seat.find({ room_id }).sort({ row_of_seat: 1, column_of_seat: 1 });
+        const seats = await Seat.aggregate([
+            {
+                $match: {
+                    room_id: new mongoose.Types.ObjectId(room_id)
+                }
+            },
+            {
+                $addFields: {
+                    column_number: { $toInt: "$column_of_seat" }
+                }
+            },
+            {
+                $sort: {
+                    row_of_seat: 1,
+                    column_number: 1
+                }
+            }
+        ]);
 
         if (!seats || seats.length === 0) {
             return res.status(404).json(createResponse(404, 'Không tìm thấy ghế trong phòng này', null));
