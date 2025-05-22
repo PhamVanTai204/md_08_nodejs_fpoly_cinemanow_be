@@ -23,10 +23,10 @@ const vnpay = new VNPay({
     tmnCode: 'HKN8S09W', // Mã TMN do VNPay cấp
     secureSecret: 'X3K9G4X8MJR4XGHMNR6YVUNUYIFJ9CPA', // Chuỗi bí mật bảo mật
     vnpayHost: 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html', // Đổi thành production khi deploy
-    
+
     // WARNING: Đổi thành false khi triển khai production
     testMode: true, // Để true khi test, false khi chạy thật
-    
+
     hashAlgorithm: 'SHA512',
     enableLog: true,
     loggerFn: console.log, // Ghi log ra console, có thể dùng ignoreLogger để tắt log
@@ -65,7 +65,7 @@ exports.createPaymentUrl = async (req, res) => {
     try {
         // Lấy dữ liệu từ body của request
         const { ticket_id, amount } = req.body;
-        
+
         // IMPORTANT: Kiểm tra vé tồn tại và chưa thanh toán
         const ticket = await Ticket.findOne({
             _id: ticket_id,
@@ -78,7 +78,7 @@ exports.createPaymentUrl = async (req, res) => {
                 message: 'Ticket not found or already processed'
             });
         }
-        
+
         // NOTE: Tạo payment_id duy nhất
         const payment_id = 'PAY' + Date.now();
 
@@ -89,7 +89,7 @@ exports.createPaymentUrl = async (req, res) => {
             payment_method: 1, // 1 = VNPay
             status_order: 'pending'
         });
-        
+
         // IMPORTANT: Tạo thời gian hết hạn cho URL thanh toán (15 phút)
         const expireDate = new Date(Date.now() + 15 * 60 * 1000); // 15 phút hết hạn
         const formattedExpireDate = dateFormat(expireDate, 'yyyyMMddHHmmss');
@@ -152,34 +152,34 @@ exports.handleVNPayIpn = async (req, res) => {
         if (!verify.isVerified) {
             return res.json(IpnFailChecksum);
         }
-        
+
         // NOTE: Tìm payment trong database
         const payment = await Payment.findById(verify.vnp_TxnRef);
         if (!payment) {
             return res.json(IpnOrderNotFound);
         }
-        
+
         // NOTE: Tìm ticket tương ứng
         const ticket = await Ticket.findById(payment.ticket_id);
         if (!ticket) {
             return res.status(404).json({ success: false, message: 'Không tìm thấy vé' });
         }
-        
+
         // WARNING: Kiểm tra số tiền thanh toán
         if (verify.vnp_Amount !== ticket.total_amount) {
             return res.json(IpnInvalidAmount);
         }
-        
+
         // WARNING: Kiểm tra trạng thái payment
         if (payment.status_order === 'completed') {
             return res.json(InpOrderAlreadyConfirmed);
         }
-        
+
         // NOTE: Cập nhật thông tin payment từ kết quả VNPay
         payment.vnp_TransactionNo = verify.vnp_TransactionNo;
         payment.vnp_ResponseCode = verify.vnp_ResponseCode;
         payment.vnp_BankCode = verify.vnp_BankCode;
-        
+
         // IMPORTANT: Xử lý chuyển đổi định dạng ngày từ VNPay
         const payDateStr = verify.vnp_PayDate; // "20250424210435"
         let payDate = new Date(
@@ -195,7 +195,7 @@ exports.handleVNPayIpn = async (req, res) => {
         payDate = new Date(payDate.getTime() + 7 * 60 * 60 * 1000);
 
         payment.vnp_PayDate = payDate;
-        
+
         // IMPORTANT: Xử lý khi thanh toán thành công
         if (verify.isSuccess) {
             payment.status_order = 'completed';
@@ -266,7 +266,7 @@ exports.verifyPayment = async (req, res) => {
         if (!verify.isVerified) {
             return res.status(400).json({ success: false, message: 'Sai checksum' });
         }
-        
+
         // DEBUG: Ghi log kết quả xác thực
         console.log("Verify result:", verify);
 
@@ -298,32 +298,45 @@ exports.verifyPayment = async (req, res) => {
             payment.vnp_TransactionNo = verify.vnp_TransactionNo;
             payment.vnp_BankCode = verify.vnp_BankCode;
             payment.vnp_CardType = verify.vnp_CardType;
-            payment.vnp_PayDate = verify.vnp_PayDate;
+            const payDateStr = verify.vnp_PayDate; // "20250424210435"
+            let payDate = new Date(
+                payDateStr.substring(0, 4),           // year
+                parseInt(payDateStr.substring(4, 6)) - 1, // month (zero-based)
+                payDateStr.substring(6, 8),           // day
+                payDateStr.substring(8, 10),          // hour
+                payDateStr.substring(10, 12),         // minute
+                payDateStr.substring(12, 14)          // second
+            );
+
+            // 👉 Chuyển sang giờ VN bằng cách cộng thêm 7 giờ
+            payDate = new Date(payDate.getTime() + 7 * 60 * 60 * 1000);
+
+            payment.vnp_PayDate = payDate;
             payment.vnp_ResponseCode = verify.vnp_ResponseCode;
             await payment.save();
 
             // NOTE: Cập nhật trạng thái vé
             ticket.status = 'confirmed';
             await ticket.save();
-// STEP: Gửi email xác nhận vé cho người dùng
-try {
-    const user = await User.findById(ticket.user_id);
-    if (user && user.email) {
-        const transporter = nodemailer.createTransport({
-            service: 'Gmail',
-            auth: {
-                    user: 'sanndph32936@fpt.edu.vn',
-        pass: 'tlqb wbgl llzt mbnw',
-            },
-            tls: { rejectUnauthorized: false }
-        });
+            // STEP: Gửi email xác nhận vé cho người dùng
+            try {
+                const user = await User.findById(ticket.user_id);
+                if (user && user.email) {
+                    const transporter = nodemailer.createTransport({
+                        service: 'Gmail',
+                        auth: {
+                            user: 'sanndph32936@fpt.edu.vn',
+                            pass: 'tlqb wbgl llzt mbnw',
+                        },
+                        tls: { rejectUnauthorized: false }
+                    });
 
-        // Tạo nội dung email
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: user.email,
-            subject: 'Xác nhận đặt vé thành công 🎟️',
-            html: `
+                    // Tạo nội dung email
+                    const mailOptions = {
+                        from: process.env.EMAIL_USER,
+                        to: user.email,
+                        subject: 'Xác nhận đặt vé thành công 🎟️',
+                        html: `
                 <div style="font-family: Arial, sans-serif; padding: 20px;">
                     <h2 style="color: #28a745;">Chúc mừng ${user.full_name || user.user_name}!</h2>
                     <p>Bạn đã đặt vé thành công tại hệ thống <b>Cinema Now</b>.</p>
@@ -337,14 +350,14 @@ try {
                     <p>Xin cảm ơn quý khách đã sử dụng dịch vụ!</p>
                 </div>
             `
-        };
+                    };
 
-        await transporter.sendMail(mailOptions);
-        console.log(`✅ Đã gửi email xác nhận vé đến: ${user.email}`);
-    }
-} catch (mailErr) {
-    console.error("❌ Lỗi khi gửi email xác nhận:", mailErr.message);
-}
+                    await transporter.sendMail(mailOptions);
+                    console.log(`✅ Đã gửi email xác nhận vé đến: ${user.email}`);
+                }
+            } catch (mailErr) {
+                console.error("❌ Lỗi khi gửi email xác nhận:", mailErr.message);
+            }
             // DEBUG: Ghi log quá trình cập nhật ghế
             console.log("Đang cập nhật trạng thái ghế từ selecting thành booked...");
 
@@ -354,7 +367,7 @@ try {
             // IMPORTANT: Lấy room_id từ showtime vì ticket không có trực tiếp room_id
             let roomId = null;
             try {
-                
+
                 const showtime = await ShowTime.findById(ticket.showtime_id);
                 if (showtime) {
                     roomId = showtime.room_id;
@@ -375,7 +388,7 @@ try {
 
             // ANCHOR: Cập nhật trạng thái ghế và gửi thông báo
             try {
-               
+
 
                 // DEBUG: Ghi log thông tin seatIds
                 console.log("Thông tin seat_ids cần cập nhật:", seatIds);
@@ -436,6 +449,6 @@ try {
 
 // IDEA: Thêm chức năng hoàn tiền cho vé đã thanh toán
 // TODO: Thêm chức năng lấy lịch sử thanh toán của người dùng
-// OPTIMIZE: Cải thiện cách xử lý và lưu trữ thông tin thanh toán 
+// OPTIMIZE: Cải thiện cách xử lý và lưu trữ thông tin thanh toán
 
 // END-SECTION
