@@ -8,6 +8,9 @@ router.get('/get-all', seatController.getAllSeats);
 // Lấy ghế theo ID
 router.get('/get-by-id/:id', seatController.getSeatById);
 
+// THÊM MỚI: Lấy trạng thái ghế theo showtime
+router.get('/showtime/:room_id/:showtime_id', seatController.getSeatsByShowtime);
+
 // Tạo ghế mới
 router.post('/create', seatController.createSeat);
 
@@ -29,4 +32,4 @@ router.post('/select-temporary', seatController.temporarySelectSeats);
 router.post('/release', seatController.releaseSeats);
 router.post('/initiate-payment', seatController.initiatePayment);
 
-module.exports = router; 
+module.exports = router;

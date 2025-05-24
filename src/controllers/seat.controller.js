@@ -420,49 +420,75 @@ exports.temporarySelectSeats = async (req, res) => {
     const { seat_ids, room_id, user_id, showtime_id } = req.body;
 
     try {
-        // IMPORTANT: Kiểm tra tham số đầu vào
-        if (!seat_ids || !Array.isArray(seat_ids) || seat_ids.length === 0 || !room_id || !user_id) {
-            return res.status(400).json(createResponse(400, "Cần cung cấp danh sách seat_ids, room_id và user_id", null));
+        // IMPORTANT: Kiểm tra tham số đầu vào, bắt buộc phải có showtime_id
+        if (!seat_ids || !Array.isArray(seat_ids) || seat_ids.length === 0 || !room_id || !user_id || !showtime_id) {
+            return res.status(400).json(createResponse(400, "Cần cung cấp đầy đủ seat_ids, room_id, user_id và showtime_id", null));
         }
 
         // NOTE: Tìm các ghế cần cập nhật
         const seats = await Seat.find({ seat_id: { $in: seat_ids }, room_id });
 
-        // WARNING: Kiểm tra xem ghế có đang được chọn bởi người khác không
-        const unavailableSeats = seats.filter(seat =>
-            seat.seat_status === 'selecting' || seat.seat_status === 'booked'
-        );
+        // WARNING: Kiểm tra xem ghế có đang được chọn bởi người khác trong suất chiếu này không
+        const unavailableSeats = [];
+
+        for (const seat of seats) {
+            const showtimeStatus = seat.showtime_status.find(st => st.showtime_id.toString() === showtime_id);
+            if (showtimeStatus && (showtimeStatus.status === 'selecting' || showtimeStatus.status === 'booked')) {
+                unavailableSeats.push(seat);
+            }
+        }
 
         if (unavailableSeats.length > 0) {
             return res.status(400).json(createResponse(400,
-                `Ghế ${unavailableSeats.map(s => s.seat_id).join(', ')} đã được chọn hoặc đặt bởi người khác`,
+                `Ghế ${unavailableSeats.map(s => s.seat_id).join(', ')} đã được chọn hoặc đặt bởi người khác trong suất chiếu này`,
                 null
             ));
         }
 
-        // DONE: Cập nhật trạng thái thành 'selecting'
-        await Seat.updateMany(
-            { seat_id: { $in: seat_ids }, room_id },
-            {
-                seat_status: 'selecting',
-                selected_by: user_id,  // Thêm thông tin người đang chọn
-                selection_time: new Date()  // Thêm thời gian bắt đầu chọn
+        // DONE: Cập nhật trạng thái theo showtime
+        for (const seatId of seat_ids) {
+            await Seat.updateOne(
+                { seat_id: seatId, room_id },
+                {
+                    $set: {
+                        "showtime_status.$[elem].status": "selecting",
+                        "showtime_status.$[elem].selected_by": user_id,
+                        "showtime_status.$[elem].selection_time": new Date()
+                    }
+                },
+                {
+                    arrayFilters: [{ "elem.showtime_id": new mongoose.Types.ObjectId(showtime_id) }],
+                    upsert: false
+                }
+            );
+
+            // Nếu không tìm thấy showtime_status, thêm mới
+            const seat = await Seat.findOne({ seat_id: seatId, room_id });
+            const hasShowtime = seat.showtime_status.some(st => st.showtime_id.toString() === showtime_id);
+
+            if (!hasShowtime) {
+                await Seat.updateOne(
+                    { seat_id: seatId, room_id },
+                    {
+                        $push: {
+                            showtime_status: {
+                                showtime_id: new mongoose.Types.ObjectId(showtime_id),
+                                status: "selecting",
+                                selected_by: user_id,
+                                selection_time: new Date()
+                            }
+                        }
+                    }
+                );
             }
-        );
-         
-        // NOTE: Tạo chuỗi xác định kênh Pusher
-        let channelName = `room-${room_id}`;
-        
-        // NOTE: Nếu có showtime_id, thêm vào tên kênh để kênh chỉ cập nhật cho suất chiếu cụ thể
-        if (showtime_id) {
-            channelName = `room-${room_id}-${showtime_id}`;
-            console.log(`Sử dụng kênh Pusher cho suất chiếu: ${channelName}`);
         }
- 
-        // IMPORTANT: Gửi thông báo qua Pusher
+
+        // IMPORTANT: Gửi thông báo qua Pusher với channel riêng cho showtime
+        const channelName = `room-${room_id}-${showtime_id}`;
         pusher.trigger(channelName, 'seats-selecting', {
             seat_ids,
             user_id,
+            showtime_id,
             status: 'selecting'
         });
 
@@ -480,88 +506,91 @@ exports.releaseSeats = async (req, res) => {
 
     try {
         console.log("Yêu cầu giải phóng ghế:", { seat_ids, room_id, user_id, showtime_id });
-        
-        // IMPORTANT: Kiểm tra tham số đầu vào
-        if (!seat_ids || !Array.isArray(seat_ids) || seat_ids.length === 0) {
-            return res.status(400).json(createResponse(400, "Cần cung cấp danh sách seat_ids", null));
+
+        // IMPORTANT: Kiểm tra tham số đầu vào, bắt buộc phải có showtime_id
+        if (!seat_ids || !Array.isArray(seat_ids) || seat_ids.length === 0 || !room_id || !showtime_id) {
+            return res.status(400).json(createResponse(400, "Cần cung cấp đầy đủ seat_ids, room_id và showtime_id", null));
         }
 
-        if (!room_id) {
-            return res.status(400).json(createResponse(400, "Cần cung cấp room_id", null));
-        }
+        let modifiedCount = 0;
 
-        // SECTION: Xác định điều kiện lọc linh hoạt hơn
-        // NOTE: Xác định điều kiện lọc linh hoạt hơn, hỗ trợ cả seat_id và _id
-        let filterCondition;
-        
-        // NOTE: Trường hợp 1: Kiểm tra seat_ids có phải ObjectId (có thể là _id từ MongoDB)
-        if (seat_ids.every(id => mongoose.Types.ObjectId.isValid(id))) {
-            console.log("Sử dụng _id để tìm ghế");
-            
-            // NOTE: Nếu có user_id, chỉ giải phóng ghế của user đó
-            filterCondition = user_id 
-                ? { 
-                    $or: [
-                        { _id: { $in: seat_ids }, room_id, selected_by: user_id, seat_status: 'selecting' },
-                        { seat_id: { $in: seat_ids }, room_id, selected_by: user_id, seat_status: 'selecting' }
-                    ]
+        // DONE: Cập nhật trạng thái theo showtime
+        for (const seatId of seat_ids) {
+            const updateCondition = user_id
+                ? { seat_id: seatId, room_id, "showtime_status.showtime_id": new mongoose.Types.ObjectId(showtime_id), "showtime_status.selected_by": user_id }
+                : { seat_id: seatId, room_id, "showtime_status.showtime_id": new mongoose.Types.ObjectId(showtime_id) };
+
+            const updateResult = await Seat.updateOne(
+                updateCondition,
+                {
+                    $set: {
+                        "showtime_status.$[elem].status": "available",
+                        "showtime_status.$[elem].selected_by": null,
+                        "showtime_status.$[elem].selection_time": null
+                    }
+                },
+                {
+                    arrayFilters: [{ "elem.showtime_id": new mongoose.Types.ObjectId(showtime_id) }]
                 }
-                : { 
-                    $or: [
-                        { _id: { $in: seat_ids }, room_id, seat_status: 'selecting' },
-                        { seat_id: { $in: seat_ids }, room_id, seat_status: 'selecting' }
-                    ]
-                };
-        } else {
-            console.log("Sử dụng seat_id để tìm ghế");
-            
-            // NOTE: Nếu có user_id, chỉ giải phóng ghế của user đó
-            filterCondition = user_id 
-                ? { seat_id: { $in: seat_ids }, room_id, selected_by: user_id, seat_status: 'selecting' }
-                : { seat_id: { $in: seat_ids }, room_id, seat_status: 'selecting' };
+            );
+
+            modifiedCount += updateResult.modifiedCount;
         }
-        
-        console.log("Filter condition:", JSON.stringify(filterCondition));
-        
-        // DONE: Cập nhật trạng thái trở lại 'available'
-        const updateResult = await Seat.updateMany(
-            filterCondition,
-            {
-                seat_status: 'available',
-                selected_by: null,
-                selection_time: null
-            }
-        );
-         
-        console.log("Kết quả cập nhật:", updateResult);
-        
-        // NOTE: Xử lý khi không tìm thấy ghế cần giải phóng
-        if (updateResult.modifiedCount === 0) {
-            // NOTE: Nếu không tìm thấy ghế cần giải phóng, vẫn trả về thành công để không làm gián đoạn quy trình
+
+        console.log("Số ghế đã giải phóng:", modifiedCount);
+
+        if (modifiedCount === 0) {
             console.log("Không tìm thấy ghế cần giải phóng với điều kiện đã cho");
             return res.json(createResponse(200, "Không tìm thấy ghế cần giải phóng", null));
         }
 
-        // NOTE: Tạo chuỗi xác định kênh Pusher
-        let channelName = `room-${room_id}`;
-        
-        // NOTE: Nếu có showtime_id, thêm vào tên kênh để kênh chỉ cập nhật cho suất chiếu cụ thể
-        if (showtime_id) {
-            channelName = `room-${room_id}-${showtime_id}`;
-            console.log(`Sử dụng kênh Pusher cho suất chiếu: ${channelName}`);
-        }
-
-        // IMPORTANT: Gửi thông báo qua Pusher
+        // IMPORTANT: Gửi thông báo qua Pusher với channel riêng cho showtime
+        const channelName = `room-${room_id}-${showtime_id}`;
         pusher.trigger(channelName, 'seats-released', {
             seat_ids,
             user_id,
+            showtime_id,
             status: 'available'
         });
 
-        res.json(createResponse(200, `Đã giải phóng ${updateResult.modifiedCount} ghế thành công`, null));
+        res.json(createResponse(200, `Đã giải phóng ${modifiedCount} ghế thành công`, null));
     } catch (error) {
         console.error("Release seats error:", error);
         res.status(500).json(createResponse(500, "Lỗi khi giải phóng ghế", error.message));
+    }
+};
+
+// ANCHOR: Lấy trạng thái ghế theo showtime
+exports.getSeatsByShowtime = async (req, res) => {
+    try {
+        const { room_id, showtime_id } = req.params;
+
+        const seats = await Seat.find({ room_id })
+            .populate({
+                path: 'room_id',
+                populate: {
+                    path: 'cinema_id'
+                }
+            });
+
+        // Xử lý trạng thái ghế theo showtime
+        const seatsWithStatus = seats.map(seat => {
+            const showtimeStatus = seat.showtime_status.find(st =>
+                st.showtime_id.toString() === showtime_id
+            );
+
+            return {
+                ...seat.toObject(),
+                current_status: showtimeStatus ? showtimeStatus.status : 'available',
+                current_selected_by: showtimeStatus ? showtimeStatus.selected_by : null,
+                current_selection_time: showtimeStatus ? showtimeStatus.selection_time : null
+            };
+        });
+
+        res.json(createResponse(200, null, seatsWithStatus));
+    } catch (error) {
+        console.error('Get seats by showtime error:', error);
+        res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách ghế theo showtime', null));
     }
 };
 
@@ -578,20 +607,20 @@ exports.initiatePayment = async (req, res) => {
 
         // NOTE: Tạo chuỗi xác định kênh Pusher
         let channelName = `room-${room_id}`;
-        
+
         // NOTE: Nếu có showtime_id, thêm vào tên kênh để kênh chỉ cập nhật cho suất chiếu cụ thể
         if (showtime_id) {
             channelName = `room-${room_id}-${showtime_id}`;
             console.log(`Sử dụng kênh Pusher cho suất chiếu: ${channelName}`);
         }
-        
+
         // IMPORTANT: Gửi thông báo qua Pusher
         pusher.trigger(channelName, 'payment-initiated', {
             seat_ids,
             user_id,
             status: 'payment_initiated'
         });
-        
+
         // NOTE: Gửi thông báo cũng đến kênh phòng chung để đảm bảo không bỏ lỡ ai
         if (showtime_id) {
             pusher.trigger(`room-${room_id}`, 'payment-initiated', {
@@ -601,7 +630,7 @@ exports.initiatePayment = async (req, res) => {
                 showtime_id
             });
         }
-        
+
         res.json(createResponse(200, "Đã thông báo bắt đầu thanh toán", null));
     } catch (error) {
         console.error("Initiate payment error:", error);
@@ -612,51 +641,58 @@ exports.initiatePayment = async (req, res) => {
 // SECTION: Tác vụ tự động giải phóng ghế
 // IMPORTANT: Chạy mỗi 2 phút để giải phóng các ghế bị treo
 // EXPERIMENTAL: Tác vụ tự động chạy ngầm
+// SECTION: Tác vụ tự động giải phóng ghế theo showtime
 setInterval(async () => {
     try {
-        console.log('Chạy tác vụ tự động giải phóng ghế bị treo');
-        const timeoutMinutes = 5; // NOTE: Thời gian timeout 5 phút
+        console.log('Chạy tác vụ tự động giải phóng ghế bị treo theo showtime');
+        const timeoutMinutes = 5;
         const timeoutThreshold = new Date(Date.now() - timeoutMinutes * 60 * 1000);
-        
-        // NOTE: Tìm tất cả ghế đang ở trạng thái selecting và đã quá thời gian
-        const staleSeatSelections = await Seat.find({
-            seat_status: 'selecting',
-            selection_time: { $lt: timeoutThreshold }
-        });
-        
-        if (staleSeatSelections.length > 0) {
-            console.log(`Tìm thấy ${staleSeatSelections.length} ghế bị treo cần giải phóng`);
-            
-            // NOTE: Tạo danh sách ghế cần giải phóng theo phòng
-            const seatsByRoom = staleSeatSelections.reduce((groups, seat) => {
-                const roomId = seat.room_id.toString();
-                if (!groups[roomId]) {
-                    groups[roomId] = [];
+
+        // NOTE: Tìm tất cả ghế có showtime_status đang selecting và đã quá thời gian
+        const seatsWithStaleSelections = await Seat.find({
+            "showtime_status": {
+                $elemMatch: {
+                    status: 'selecting',
+                    selection_time: { $lt: timeoutThreshold }
                 }
-                groups[roomId].push(seat);
-                return groups;
-            }, {});
-            
-            // SECTION: Giải phóng ghế theo từng phòng
-            for (const [roomId, seats] of Object.entries(seatsByRoom)) {
-                const seatIds = seats.map(seat => seat.seat_id);
-                // DONE: Cập nhật trạng thái ghế thành available
-                await Seat.updateMany(
-                    { seat_id: { $in: seatIds }, room_id: roomId },
-                    { 
-                        seat_status: 'available',
-                        selected_by: null,
-                        selection_time: null
-                    }
+            }
+        });
+
+        if (seatsWithStaleSelections.length > 0) {
+            console.log(`Tìm thấy ${seatsWithStaleSelections.length} ghế có trạng thái bị treo cần giải phóng`);
+
+            for (const seat of seatsWithStaleSelections) {
+                // Tìm các showtime_status bị treo
+                const staleStatuses = seat.showtime_status.filter(st =>
+                    st.status === 'selecting' && st.selection_time < timeoutThreshold
                 );
-                
-                // IMPORTANT: Gửi thông báo qua Pusher
-                pusher.trigger(`room-${roomId}`, 'seats-released', {
-                    seat_ids: seatIds,
-                    status: 'available'
-                });
-                
-                console.log(`Đã giải phóng ${seatIds.length} ghế trong phòng ${roomId}`);
+
+                for (const staleStatus of staleStatuses) {
+                    // Cập nhật trạng thái
+                    await Seat.updateOne(
+                        { _id: seat._id },
+                        {
+                            $set: {
+                                "showtime_status.$[elem].status": "available",
+                                "showtime_status.$[elem].selected_by": null,
+                                "showtime_status.$[elem].selection_time": null
+                            }
+                        },
+                        {
+                            arrayFilters: [{ "elem.showtime_id": staleStatus.showtime_id }]
+                        }
+                    );
+
+                    // Gửi thông báo Pusher
+                    const channelName = `room-${seat.room_id}-${staleStatus.showtime_id}`;
+                    pusher.trigger(channelName, 'seats-released', {
+                        seat_ids: [seat.seat_id],
+                        showtime_id: staleStatus.showtime_id.toString(),
+                        status: 'available'
+                    });
+
+                    console.log(`Đã giải phóng ghế ${seat.seat_id} cho showtime ${staleStatus.showtime_id}`);
+                }
             }
         } else {
             console.log('Không tìm thấy ghế nào cần giải phóng');
@@ -664,7 +700,7 @@ setInterval(async () => {
     } catch (error) {
         console.error('Lỗi khi chạy tác vụ tự động giải phóng ghế:', error);
     }
-}, 2 * 60 * 1000); // STATS: Chạy mỗi 2 phút
+}, 2 * 60 * 1000);
 
 // TODO: Thêm API lấy danh sách các ghế đang được chọn theo phòng và suất chiếu
 // TODO: Thêm xác thực và kiểm tra quyền khi thực hiện các thao tác quản lý ghế

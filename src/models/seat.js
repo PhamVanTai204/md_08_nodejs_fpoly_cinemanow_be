@@ -35,16 +35,40 @@ const seatSchema = new mongoose.Schema({
         required: true
     },
     selected_by: {
-        type: String, // Lưu ID của người dùng đang chọn ghế
+        type: String,
         default: null
     },
     selection_time: {
-        type: Date, // Thời gian bắt đầu chọn ghế
+        type: Date,
         default: null
-    }
+    },
+    // THÊM MỚI: Theo dõi trạng thái theo từng suất chiếu
+    showtime_status: [{
+        showtime_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'ShowTime',
+            required: true
+        },
+        status: {
+            type: String,
+            enum: ['available', 'booked', 'selecting'],
+            default: 'available'
+        },
+        selected_by: {
+            type: String,
+            default: null
+        },
+        selection_time: {
+            type: Date,
+            default: null
+        }
+    }]
 }, {
     timestamps: true
 });
-seatSchema.index({ seat_id: 1, room_id: 1 }, { unique: true });
 
-module.exports = mongoose.model('Seat', seatSchema); 
+// Index cho hiệu suất
+seatSchema.index({ seat_id: 1, room_id: 1 }, { unique: true });
+seatSchema.index({ room_id: 1, 'showtime_status.showtime_id': 1 });
+
+module.exports = mongoose.model('Seat', seatSchema);
