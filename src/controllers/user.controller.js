@@ -825,6 +825,144 @@ exports.getAdminsByCinemaName = async (req, res) => {
   }
 };
 
+// ANCHOR: Lấy danh sách nhân viên theo ID rạp
+exports.getEmployeesByCinemaId = async (req, res) => {
+  const { cinema_id } = req.params;
+  const { page = 1, limit = 10, include_cinema_info = false } = req.query;
+
+  // VALIDATION: Kiểm tra cinema_id hợp lệ
+  if (!cinema_id || !mongoose.Types.ObjectId.isValid(cinema_id)) {
+    return res.status(400).json(createResponse(400, 'cinema_id không hợp lệ', null));
+  }
+
+  try {
+    // NOTE: Kiểm tra rạp có tồn tại không
+    const cinema = await Cinema.findById(cinema_id);
+    if (!cinema) {
+      return res.status(404).json(createResponse(404, 'Rạp không tồn tại', null));
+    }
+
+    // PERFORMANCE: Sử dụng phân trang để tối ưu hiệu suất
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // NOTE: Lấy danh sách nhân viên (role = 3) thuộc rạp này
+    const employees = await User.find({
+      role: 3, // Employee role
+      cinema_id: cinema_id
+    })
+    .select('-password -__v') // SECURITY: Không trả về password
+    .skip(skip)
+    .limit(limitNum)
+    .sort({ createdAt: -1 }); // Sắp xếp theo thời gian tạo mới nhất
+
+    // NOTE: Đếm tổng số nhân viên trong rạp
+    const totalEmployees = await User.countDocuments({
+      role: 3,
+      cinema_id: cinema_id
+    });
+
+    const totalPages = Math.ceil(totalEmployees / limitNum);
+
+    // FUNCTIONALITY: Thêm thông tin role_name cho mỗi nhân viên
+    const employeeList = employees.map(employee => ({
+      ...employee.toObject(),
+      role_name: getRoleName(employee.role)
+    }));
+
+    // NOTE: Chuẩn bị response data
+    let responseData = {
+      employees: employeeList,
+      totalEmployees,
+      totalPages,
+      currentPage: pageNum,
+      pageSize: limitNum
+    };
+
+    // FEATURE: Thêm thông tin rạp nếu được yêu cầu
+    if (include_cinema_info === 'true') {
+      responseData.cinema_info = {
+        cinema_id: cinema._id,
+        cinema_name: cinema.cinema_name,
+        location: cinema.location,
+        address: cinema.address || null
+      };
+    }
+
+    return res.status(200).json(createResponse(200, null, responseData));
+  } catch (error) {
+    // ERROR: Ghi log lỗi khi lấy danh sách nhân viên theo rạp
+    return res.status(500).json(createResponse(500, 'Lỗi server khi lấy danh sách nhân viên theo rạp', error.message));
+  }
+};
+
+// ANCHOR: Lấy danh sách nhân viên theo tên rạp
+exports.getEmployeesByCinemaName = async (req, res) => {
+  const { cinema_name } = req.params;
+  const { page = 1, limit = 10 } = req.query;
+
+  // VALIDATION: Kiểm tra tên rạp
+  if (!cinema_name || cinema_name.trim() === '') {
+    return res.status(400).json(createResponse(400, 'Tên rạp không được để trống', null));
+  }
+
+  try {
+    // NOTE: Tìm rạp theo tên (không phân biệt hoa thường)
+    const cinema = await Cinema.findOne({ 
+      cinema_name: { $regex: cinema_name.trim(), $options: 'i' } 
+    });
+    
+    if (!cinema) {
+      return res.status(404).json(createResponse(404, 'Không tìm thấy rạp với tên này', null));
+    }
+
+    // PERFORMANCE: Phân trang
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // NOTE: Lấy danh sách nhân viên thuộc rạp
+    const employees = await User.find({
+      role: 3, // Employee role
+      cinema_id: cinema._id
+    })
+    .select('-password -__v')
+    .skip(skip)
+    .limit(limitNum)
+    .sort({ createdAt: -1 });
+
+    const totalEmployees = await User.countDocuments({
+      role: 3,
+      cinema_id: cinema._id
+    });
+
+    const totalPages = Math.ceil(totalEmployees / limitNum);
+
+    // FUNCTIONALITY: Format response data
+    const employeeList = employees.map(employee => ({
+      ...employee.toObject(),
+      role_name: getRoleName(employee.role)
+    }));
+
+    return res.status(200).json(createResponse(200, null, {
+      cinema_info: {
+        cinema_id: cinema._id,
+        cinema_name: cinema.cinema_name,
+        location: cinema.location
+      },
+      employees: employeeList,
+      totalEmployees,
+      totalPages,
+      currentPage: pageNum,
+      pageSize: limitNum
+    }));
+  } catch (error) {
+    // ERROR: Ghi log lỗi khi lấy nhân viên theo tên rạp
+    return res.status(500).json(createResponse(500, 'Lỗi server khi lấy nhân viên theo tên rạp', error.message));
+  }
+};
+
 
 
 // IDEA: Thêm chức năng thay đổi mật khẩu cho người dùng đã đăng nhập

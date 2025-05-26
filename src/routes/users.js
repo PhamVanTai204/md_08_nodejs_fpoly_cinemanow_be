@@ -30,7 +30,11 @@ router.delete('/deleteUser/:id', uc.deleteUser);
 
 router.get('/users/by-role-and-cinema', uc.getUsersByRoleAndCinema);
 
-router.get('/cinema/:cinema_id', uc.getAdminsByCinemaId);
+router.get('/get-admin-by-id-cinema/:cinema_id', uc.getAdminsByCinemaId);
 
-router.get('/cinema/:cinema_id', uc.getAdminsByCinemaName);
+router.get('/get-admin-by-name-cinema/:cinema_id', uc.getAdminsByCinemaName);
+
+router.get('/get-employee-by-id-cinema/:cinema_id', uc.getEmployeesByCinemaId);
+
+router.get('/get-employee-by-name-cinema/:cinema_id', uc.getEmployeesByCinemaName);
 module.exports = router;
