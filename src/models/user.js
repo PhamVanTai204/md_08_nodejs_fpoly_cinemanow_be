@@ -1,6 +1,9 @@
 const db = require('./db');
 
 const userSchema = db.mongoose.Schema({
+  user_id:{
+    type:String,
+  },
   user_name: {
     type: String,
     required: true,

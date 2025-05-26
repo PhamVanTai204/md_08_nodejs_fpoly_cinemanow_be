@@ -16,6 +16,14 @@ const seatSchema = new mongoose.Schema({
         default: 'available',
         required: true
     },
+    cinema_id:{
+        type:mongoose.Schema.Types.ObjectId,
+        ref:'Cinema',
+    },
+    ticket_id:{
+        type:mongoose.Schema.Types.ObjectId,
+        ref:'Ticket'
+    },
     seat_type: {
         type: String,
         enum: ['standard', 'vip', 'couple'],

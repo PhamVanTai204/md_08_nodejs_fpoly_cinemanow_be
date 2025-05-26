@@ -2,6 +2,9 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const bannerSchema = new Schema({
+    banner_id:{
+        type:String
+    },
     image_url: {
         type: String,
         required: true

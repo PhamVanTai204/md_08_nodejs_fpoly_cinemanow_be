@@ -6,6 +6,10 @@ const voucherSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
+    user_id:{
+      type:mongoose.Schema.Types.ObjectId,
+      ref:'User'  
+    },
     voucher_value: {
         type: Number,
         required: true
