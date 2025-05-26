@@ -29,4 +29,8 @@ router.post('/logout-all', auth, uc.logoutAll);
 router.delete('/deleteUser/:id', uc.deleteUser);
 
 router.get('/users/by-role-and-cinema', uc.getUsersByRoleAndCinema);
+
+router.get('/cinema/:cinema_id', uc.getAdminsByCinemaId);
+
+router.get('/cinema/:cinema_id', uc.getAdminsByCinemaName);
 module.exports = router;
