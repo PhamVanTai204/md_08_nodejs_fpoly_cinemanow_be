@@ -85,6 +85,7 @@ function generateShowTimeId() {
 }
 
 // ANCHOR: Tạo suất chiếu mới
+// ANCHOR: Tạo suất chiếu mới với validation nâng cao
 exports.createShowTime = async (req, res) => {
     try {
         const { movie_id, room_id, cinema_id, start_time, end_time, show_date } = req.body;
@@ -96,7 +97,7 @@ exports.createShowTime = async (req, res) => {
         if (!movie_id || !room_id || !cinema_id || !start_time || !end_time || !show_date) {
             return res.status(400).json(createResponse(400, 'Vui lòng cung cấp đầy đủ thông tin', null));
         }
-        
+
         // FIXME: Cần xử lý trường hợp sinh mã trùng lặp
         // NOTE: Kiểm tra showtime_id đã tồn tại
         const existingShowTime = await ShowTime.findOne({ showtime_id });
@@ -135,6 +136,48 @@ exports.createShowTime = async (req, res) => {
             return res.status(400).json(createResponse(400, 'ID rạp không hợp lệ', null));
         }
 
+        // FEATURE: Validation thời gian start_time và end_time
+        // NOTE: Kiểm tra end_time phải sau start_time
+        if (!isValidTimeRange(start_time, end_time)) {
+            return res.status(400).json(createResponse(400, 'Thời gian kết thúc phải sau thời gian bắt đầu', null));
+        }
+
+        // FEATURE: Kiểm tra trùng lịch suất chiếu
+        // NOTE: Tìm các suất chiếu cùng phòng, cùng ngày
+        const conflictingShowTimes = await ShowTime.find({
+            room_id: room_id,
+            show_date: formattedDate,
+            // OPTIMIZE: Chỉ tìm các suất chiếu có thời gian trùng lặp
+            $or: [
+                // Trường hợp 1: start_time mới nằm trong khoảng thời gian của suất chiếu cũ
+                {
+                    $and: [
+                        { start_time: { $lte: start_time } },
+                        { end_time: { $gt: start_time } }
+                    ]
+                },
+                // Trường hợp 2: end_time mới nằm trong khoảng thời gian của suất chiếu cũ
+                {
+                    $and: [
+                        { start_time: { $lt: end_time } },
+                        { end_time: { $gte: end_time } }
+                    ]
+                },
+                // Trường hợp 3: suất chiếu mới bao trùm suất chiếu cũ
+                {
+                    $and: [
+                        { start_time: { $gte: start_time } },
+                        { end_time: { $lte: end_time } }
+                    ]
+                }
+            ]
+        });
+
+        // WARNING: Nếu có trùng lịch thì báo lỗi
+        if (conflictingShowTimes.length > 0) {
+            return res.status(400).json(createResponse(400, 'Suất chiếu bị trùng lịch với suất chiếu khác trong cùng phòng', null));
+        }
+
         // NOTE: Tạo đối tượng suất chiếu mới
         const newShowTime = new ShowTime({
             showtime_id,
@@ -148,7 +191,7 @@ exports.createShowTime = async (req, res) => {
 
         // DONE: Lưu suất chiếu vào cơ sở dữ liệu
         const savedShowTime = await newShowTime.save();
-        
+
         // NOTE: Trả về suất chiếu đã được populate đầy đủ thông tin
         const populatedShowTime = await ShowTime.findById(savedShowTime._id)
             .populate('movie_id')
@@ -161,6 +204,36 @@ exports.createShowTime = async (req, res) => {
         res.status(500).json(createResponse(500, 'Lỗi khi tạo suất chiếu', null));
     }
 };
+
+// FUNCTIONALITY: Hàm kiểm tra thời gian hợp lệ
+// NOTE: So sánh start_time và end_time (định dạng HH:MM)
+function isValidTimeRange(startTime, endTime) {
+    try {
+        // NOTE: Chuyển đổi thời gian thành phút để so sánh
+        const startMinutes = timeToMinutes(startTime);
+        const endMinutes = timeToMinutes(endTime);
+        
+        // NOTE: end_time phải lớn hơn start_time
+        return endMinutes > startMinutes;
+    } catch (error) {
+        // DEBUG: Log lỗi nếu định dạng thời gian không hợp lệ
+        console.error('Invalid time format:', error);
+        return false;
+    }
+}
+
+// FUNCTIONALITY: Chuyển đổi thời gian HH:MM thành phút
+// NOTE: Ví dụ: "07:30" -> 450 phút
+function timeToMinutes(timeString) {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    
+    // SECURITY: Kiểm tra định dạng thời gian hợp lệ
+    if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+        throw new Error('Invalid time format');
+    }
+    
+    return hours * 60 + minutes;
+}
 
 // STUB: Hàm kiểm tra ngày hợp lệ
 // NOTE: Sử dụng Date constructor để kiểm tra tính hợp lệ của ngày tháng
