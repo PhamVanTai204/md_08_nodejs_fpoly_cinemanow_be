@@ -240,7 +240,9 @@ exports.addMultipleSeats = async (req, res) => {
 
         // DONE: Thêm nhiều ghế cùng lúc vào cơ sở dữ liệu
         await Seat.insertMany(newSeats);
-        res.status(201).json(createResponse(201, `Thêm ${newSeats.length} ghế thành công`, null));
+        const totalSeats = await updateRoomTotalSeats(room_id);
+
+        res.status(201).json(createResponse(201, `Thêm ${newSeats.length} ghế thành công`, totalSeats));
     } catch (error) {
         console.error("Lỗi khi thêm ghế hàng loạt:", error);
         res.status(500).json(createResponse(500, "Lỗi khi thêm ghế", error.message));
@@ -269,8 +271,9 @@ exports.deleteMultipleSeats = async (req, res) => {
         if (deleteResult.deletedCount === 0) {
             return res.status(404).json(createResponse(404, "Không tìm thấy ghế để xóa", null));
         }
+        const totalSeats = await updateRoomTotalSeats(room_id);
 
-        res.json(createResponse(200, `Xóa ${deleteResult.deletedCount} ghế thành công`, null));
+        res.json(createResponse(200, `Xóa ${deleteResult.deletedCount} ghế thành công`, totalSeats));
     } catch (error) {
         console.error("Delete multiple seats error:", error);
         res.status(500).json(createResponse(500, "Lỗi khi xóa ghế", error.message));
@@ -394,6 +397,7 @@ exports.createMultipleSeats = async (req, res) => {
         // IMPORTANT: Cập nhật tổng số ghế trong phòng
         room.total_seat = createdSeats.length;
         await room.save();
+        await updateRoomTotalSeats(room_id);
 
         res.status(201).json({
             status: true,
@@ -449,16 +453,16 @@ exports.temporarySelectSeats = async (req, res) => {
                 selection_time: new Date()  // Thêm thời gian bắt đầu chọn
             }
         );
-         
+
         // NOTE: Tạo chuỗi xác định kênh Pusher
         let channelName = `room-${room_id}`;
-        
+
         // NOTE: Nếu có showtime_id, thêm vào tên kênh để kênh chỉ cập nhật cho suất chiếu cụ thể
         if (showtime_id) {
             channelName = `room-${room_id}-${showtime_id}`;
             console.log(`Sử dụng kênh Pusher cho suất chiếu: ${channelName}`);
         }
- 
+
         // IMPORTANT: Gửi thông báo qua Pusher
         pusher.trigger(channelName, 'seats-selecting', {
             seat_ids,
@@ -480,7 +484,7 @@ exports.releaseSeats = async (req, res) => {
 
     try {
         console.log("Yêu cầu giải phóng ghế:", { seat_ids, room_id, user_id, showtime_id });
-        
+
         // IMPORTANT: Kiểm tra tham số đầu vào
         if (!seat_ids || !Array.isArray(seat_ids) || seat_ids.length === 0) {
             return res.status(400).json(createResponse(400, "Cần cung cấp danh sách seat_ids", null));
@@ -493,20 +497,20 @@ exports.releaseSeats = async (req, res) => {
         // SECTION: Xác định điều kiện lọc linh hoạt hơn
         // NOTE: Xác định điều kiện lọc linh hoạt hơn, hỗ trợ cả seat_id và _id
         let filterCondition;
-        
+
         // NOTE: Trường hợp 1: Kiểm tra seat_ids có phải ObjectId (có thể là _id từ MongoDB)
         if (seat_ids.every(id => mongoose.Types.ObjectId.isValid(id))) {
             console.log("Sử dụng _id để tìm ghế");
-            
+
             // NOTE: Nếu có user_id, chỉ giải phóng ghế của user đó
-            filterCondition = user_id 
-                ? { 
+            filterCondition = user_id
+                ? {
                     $or: [
                         { _id: { $in: seat_ids }, room_id, selected_by: user_id, seat_status: 'selecting' },
                         { seat_id: { $in: seat_ids }, room_id, selected_by: user_id, seat_status: 'selecting' }
                     ]
                 }
-                : { 
+                : {
                     $or: [
                         { _id: { $in: seat_ids }, room_id, seat_status: 'selecting' },
                         { seat_id: { $in: seat_ids }, room_id, seat_status: 'selecting' }
@@ -514,15 +518,15 @@ exports.releaseSeats = async (req, res) => {
                 };
         } else {
             console.log("Sử dụng seat_id để tìm ghế");
-            
+
             // NOTE: Nếu có user_id, chỉ giải phóng ghế của user đó
-            filterCondition = user_id 
+            filterCondition = user_id
                 ? { seat_id: { $in: seat_ids }, room_id, selected_by: user_id, seat_status: 'selecting' }
                 : { seat_id: { $in: seat_ids }, room_id, seat_status: 'selecting' };
         }
-        
+
         console.log("Filter condition:", JSON.stringify(filterCondition));
-        
+
         // DONE: Cập nhật trạng thái trở lại 'available'
         const updateResult = await Seat.updateMany(
             filterCondition,
@@ -532,9 +536,9 @@ exports.releaseSeats = async (req, res) => {
                 selection_time: null
             }
         );
-         
+
         console.log("Kết quả cập nhật:", updateResult);
-        
+
         // NOTE: Xử lý khi không tìm thấy ghế cần giải phóng
         if (updateResult.modifiedCount === 0) {
             // NOTE: Nếu không tìm thấy ghế cần giải phóng, vẫn trả về thành công để không làm gián đoạn quy trình
@@ -544,7 +548,7 @@ exports.releaseSeats = async (req, res) => {
 
         // NOTE: Tạo chuỗi xác định kênh Pusher
         let channelName = `room-${room_id}`;
-        
+
         // NOTE: Nếu có showtime_id, thêm vào tên kênh để kênh chỉ cập nhật cho suất chiếu cụ thể
         if (showtime_id) {
             channelName = `room-${room_id}-${showtime_id}`;
@@ -578,20 +582,20 @@ exports.initiatePayment = async (req, res) => {
 
         // NOTE: Tạo chuỗi xác định kênh Pusher
         let channelName = `room-${room_id}`;
-        
+
         // NOTE: Nếu có showtime_id, thêm vào tên kênh để kênh chỉ cập nhật cho suất chiếu cụ thể
         if (showtime_id) {
             channelName = `room-${room_id}-${showtime_id}`;
             console.log(`Sử dụng kênh Pusher cho suất chiếu: ${channelName}`);
         }
-        
+
         // IMPORTANT: Gửi thông báo qua Pusher
         pusher.trigger(channelName, 'payment-initiated', {
             seat_ids,
             user_id,
             status: 'payment_initiated'
         });
-        
+
         // NOTE: Gửi thông báo cũng đến kênh phòng chung để đảm bảo không bỏ lỡ ai
         if (showtime_id) {
             pusher.trigger(`room-${room_id}`, 'payment-initiated', {
@@ -601,7 +605,7 @@ exports.initiatePayment = async (req, res) => {
                 showtime_id
             });
         }
-        
+
         res.json(createResponse(200, "Đã thông báo bắt đầu thanh toán", null));
     } catch (error) {
         console.error("Initiate payment error:", error);
@@ -617,16 +621,16 @@ setInterval(async () => {
         console.log('Chạy tác vụ tự động giải phóng ghế bị treo');
         const timeoutMinutes = 5; // NOTE: Thời gian timeout 5 phút
         const timeoutThreshold = new Date(Date.now() - timeoutMinutes * 60 * 1000);
-        
+
         // NOTE: Tìm tất cả ghế đang ở trạng thái selecting và đã quá thời gian
         const staleSeatSelections = await Seat.find({
             seat_status: 'selecting',
             selection_time: { $lt: timeoutThreshold }
         });
-        
+
         if (staleSeatSelections.length > 0) {
             console.log(`Tìm thấy ${staleSeatSelections.length} ghế bị treo cần giải phóng`);
-            
+
             // NOTE: Tạo danh sách ghế cần giải phóng theo phòng
             const seatsByRoom = staleSeatSelections.reduce((groups, seat) => {
                 const roomId = seat.room_id.toString();
@@ -636,26 +640,26 @@ setInterval(async () => {
                 groups[roomId].push(seat);
                 return groups;
             }, {});
-            
+
             // SECTION: Giải phóng ghế theo từng phòng
             for (const [roomId, seats] of Object.entries(seatsByRoom)) {
                 const seatIds = seats.map(seat => seat.seat_id);
                 // DONE: Cập nhật trạng thái ghế thành available
                 await Seat.updateMany(
                     { seat_id: { $in: seatIds }, room_id: roomId },
-                    { 
+                    {
                         seat_status: 'available',
                         selected_by: null,
                         selection_time: null
                     }
                 );
-                
+
                 // IMPORTANT: Gửi thông báo qua Pusher
                 pusher.trigger(`room-${roomId}`, 'seats-released', {
                     seat_ids: seatIds,
                     status: 'available'
                 });
-                
+
                 console.log(`Đã giải phóng ${seatIds.length} ghế trong phòng ${roomId}`);
             }
         } else {
