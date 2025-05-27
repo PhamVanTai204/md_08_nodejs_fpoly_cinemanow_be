@@ -9,6 +9,60 @@ const Cinema = require('../models/cinema');
 // SECTION: API quản lý suất chiếu phim
 // LINK: https://mongoosejs.com/docs/populate.html - Tham khảo cách sử dụng populate trong Mongoose
 
+exports.getShowTimesByMovieAndCinemaGroupedByDate = async (req, res) => {
+    try {
+        const { movie_id, cinema_id } = req.query;
+
+        if (!mongoose.Types.ObjectId.isValid(movie_id) || !mongoose.Types.ObjectId.isValid(cinema_id)) {
+            return res.status(400).json(createResponse(400, 'ID phim hoặc ID rạp không hợp lệ', null));
+        }
+
+        const now = new Date();
+
+        // Lấy tất cả suất chiếu
+        const showTimes = await ShowTime.find({
+            movie_id,
+            cinema_id
+        })
+
+            .sort({ show_date: 1, start_time: 1 });
+
+        // Lọc theo end_time
+        const validShowTimes = showTimes.filter(show => {
+            const showEndDateTime = new Date(show.show_date);
+            const [endHour, endMinute] = show.end_time.split(':').map(Number);
+            showEndDateTime.setHours(endHour, endMinute, 0, 0);
+
+            return showEndDateTime > now;
+        });
+
+        if (!validShowTimes.length) {
+            return res.status(404).json(createResponse(404, 'Không có suất chiếu nào còn hiệu lực', null));
+        }
+
+        // Nhóm theo ngày
+        const grouped = {};
+        for (const show of validShowTimes) {
+            const dateKey = show.show_date.toISOString().split('T')[0];
+            if (!grouped[dateKey]) {
+                grouped[dateKey] = [];
+            }
+            grouped[dateKey].push(show);
+        }
+
+        const result = Object.keys(grouped).map(date => ({
+            date,
+            showtimes: grouped[date]
+        }));
+
+        res.json(createResponse(200, null, result));
+    } catch (error) {
+        console.error('Lỗi khi lấy suất chiếu:', error);
+        res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách suất chiếu theo ngày', null));
+    }
+};
+
+
 // ANCHOR: Lấy tất cả suất chiếu
 exports.getAllShowTimes = async (req, res) => {
     try {
@@ -276,7 +330,20 @@ exports.updateShowTime = async (req, res) => {
         if (cinema_id) showTime.cinema_id = cinema_id;
         if (start_time) showTime.start_time = start_time;
         if (end_time) showTime.end_time = end_time;
-        if (show_date) showTime.show_date = show_date;
+        if (show_date) {
+            try {
+                const [day, month, year] = show_date.split('/');
+                const formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+
+                if (!isValidDate(formattedDate)) {
+                    return res.status(400).json(createResponse(400, 'Ngày tháng không hợp lệ', null));
+                }
+
+                showTime.show_date = formattedDate;
+            } catch (error) {
+                return res.status(400).json(createResponse(400, 'Định dạng ngày tháng không hợp lệ. Vui lòng sử dụng định dạng DD/MM/YYYY', null));
+            }
+        }
 
         // DONE: Lưu thông tin đã cập nhật
         const updatedShowTime = await showTime.save();
