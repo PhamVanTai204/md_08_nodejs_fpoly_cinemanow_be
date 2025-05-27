@@ -4,7 +4,7 @@ const Film = require('../models/film');
 const Seat = require('../models/seat');
 const createResponse = require('../utils/responseHelper');
 const mongoose = require('mongoose');
-
+const Ticket = require('../models/ticket');
 // STUB: Middleware kiểm tra ID hợp lệ
 const validateId = (req, res, next) => {
     if (!req.params.id) {
@@ -424,70 +424,59 @@ exports.getSeatsByRoom = async (req, res) => {
 // ANCHOR: Lấy danh sách ghế theo ID phòng và ID suất chiếu
 exports.getSeatsByRoomAndShowTime = async (req, res) => {
     try {
-        const { room_id, showtime_id } = req.params;
+        const {showtime_id, room_id} = req.params;
 
-        // SECTION: Kiểm tra tham số đầu vào
-        // IMPORTANT: Kiểm tra tính hợp lệ của ID phòng
+        // Kiểm tra các tham số hợp lệ
         if (!mongoose.Types.ObjectId.isValid(room_id)) {
             return res.status(400).json(createResponse(400, 'ID phòng không hợp lệ', null));
         }
 
-        // IMPORTANT: Kiểm tra tính hợp lệ của ID suất chiếu
         if (!mongoose.Types.ObjectId.isValid(showtime_id) && !showtime_id.match(/^[A-Za-z0-9-_]+$/)) {
             return res.status(400).json(createResponse(400, 'ID suất chiếu không hợp lệ', null));
         }
 
-        // NOTE: Kiểm tra xem suất chiếu có tồn tại không và có đúng là trong phòng này không
+        // Kiểm tra xem suất chiếu có tồn tại không và có đúng là trong phòng này không
         const showtime = await ShowTime.findById(showtime_id);
         if (!showtime) {
             return res.status(404).json(createResponse(404, 'Không tìm thấy suất chiếu', null));
         }
 
-        // WARNING: Kiểm tra suất chiếu có thuộc phòng được chỉ định không
         if (showtime.room_id.toString() !== room_id) {
             return res.status(400).json(createResponse(400, 'Suất chiếu này không diễn ra tại phòng được chỉ định', null));
         }
 
-        // NOTE: Lấy danh sách ghế của phòng
+        // Lấy danh sách ghế của phòng
         const seats = await Seat.find({ room_id }).sort({ row_of_seat: 1, column_of_seat: 1 });
 
         if (!seats || seats.length === 0) {
             return res.status(404).json(createResponse(404, 'Không tìm thấy ghế trong phòng này', null));
         }
 
-        // SECTION: Xử lý thông tin vé đã đặt
-        // NOTE: Lấy danh sách vé đã đặt cho suất chiếu này
-        const Ticket = require('../models/ticket');
+        // Lấy danh sách vé đã đặt cho CHÍNH XÁC suất chiếu này
         const bookedTickets = await Ticket.find({
             showtime_id: showtime_id,
-            status: { $in: ['pending', 'completed'] }
+            status: { $in: ['pending', 'confirmed'] }
         });
-
-        // NOTE: Tạo tập hợp ID ghế đã được đặt trong suất chiếu này
+        
+        // Tạo Set chứa ID của các ghế đã đặt trong suất chiếu này
         const bookedSeatIds = new Set();
-
         bookedTickets.forEach(ticket => {
-            if (ticket.seats && Array.isArray(ticket.seats)) {
-                ticket.seats.forEach(seat => {
-                    if (seat.seat_id) {
-                        bookedSeatIds.add(seat.seat_id);
-                    }
-                });
-            }
+            (ticket.seats || []).forEach(seat => {
+                if (seat.seat_id) bookedSeatIds.add(seat.seat_id.toString());
+            });
         });
 
-        console.log(`Suất chiếu ${showtime_id} có ${bookedSeatIds.size} ghế đã đặt`); // DEBUG: Log để debug
-
-        // HIGHLIGHT: Cập nhật trạng thái ghế theo dữ liệu đặt vé
+        // Gắn trạng thái "booked" CHỈ cho những ghế đã đặt trong suất chiếu này
+        // Các ghế khác sẽ được đặt là "available" bất kể trạng thái gốc của chúng
         const updatedSeats = seats.map(seat => {
-            // NOTE: Tạo bản sao ghế để tránh thay đổi trực tiếp đối tượng Mongoose
             const seatObj = seat.toObject();
-
-            // NOTE: Nếu ghế này đã được đặt trong suất chiếu hiện tại
-            if (bookedSeatIds.has(seat.seat_id)) {
+            // Kiểm tra xem ghế có trong danh sách ghế đã đặt của suất chiếu hiện tại không
+            if (bookedSeatIds.has(seat._id.toString())) {
                 seatObj.seat_status = 'booked';
+            } else {
+                // Đặt lại thành available cho những ghế không được đặt trong suất chiếu này
+                seatObj.seat_status = 'available';
             }
-
             return seatObj;
         });
 
