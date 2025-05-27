@@ -217,10 +217,12 @@ exports.getAllPayments = async (req, res) => {
                     $or: [
                         { 'ticket.user.email': { $regex: search, $options: 'i' } },
                         { 'payment_id': { $regex: search, $options: 'i' } },
+                        { 'ticket.ticket_id': { $regex: search, $options: 'i' } }, // <-- thêm dòng này
                         { 'ticket.showtime.room.cinema.cinema_name': { $regex: search, $options: 'i' } },
-                        { 'ticket.showtime.movie.title': { $regex: search, $options: 'i' } } // Thêm tìm kiếm theo tên phim
+                        { 'ticket.showtime.movie.title': { $regex: search, $options: 'i' } }
                     ]
                 } : {}
+
             },
 
             // Sắp xếp từ mới nhất đến cũ nhất
