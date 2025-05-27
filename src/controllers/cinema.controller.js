@@ -498,6 +498,38 @@ exports.getSeatsByRoomAndShowTime = async (req, res) => {
     }
 };
 
+// Lấy danh sách ghế đã đặt của người dùng cho một suất chiếu
+exports.getUserBookedSeats = async (req, res) => {
+    try {
+        const { userId, showtimeId } = req.params;
+
+        // Kiểm tra tham số
+        if (!userId || !showtimeId) {
+            return res.status(400).json(createResponse(400, 'Thiếu thông tin userId hoặc showtimeId', null));
+        }
+
+        // Tìm các vé của người dùng cho suất chiếu này
+        const Ticket = require('../models/ticket');
+        const tickets = await Ticket.find({
+            user_id: userId,
+            showtime_id: showtimeId,
+            status: { $in: ['pending', 'confirmed'] } // Chỉ lấy vé đang chờ thanh toán hoặc đã xác nhận
+        });
+
+        // Lấy danh sách ID ghế đã đặt
+        const bookedSeatIds = tickets.flatMap(ticket => 
+            ticket.seats.map(seat => seat.seat_id.toString())
+        );
+
+        console.log(`Người dùng ${userId} đã đặt ${bookedSeatIds.length} ghế trong suất chiếu ${showtimeId}`);
+
+        res.json(createResponse(200, null, bookedSeatIds));
+    } catch (error) {
+        console.error('Get user booked seats error:', error);
+        res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách ghế đã đặt của người dùng', error.message));
+    }
+};
+
 // TODO: Thêm API thống kê lượng người xem theo rạp
 // TODO: Thêm API quản lý phòng chiếu của rạp
 // IDEA: Thêm tính năng đánh giá rạp phim

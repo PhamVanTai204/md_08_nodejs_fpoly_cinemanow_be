@@ -6,10 +6,10 @@ var logger = require('morgan');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors'); // Chỉ khai báo một lần!
+const createResponse = require('./src/utils/responseHelper');
 
 // Load environment variables
 dotenv.config();
-
 
 var indexRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/index');
 var usersRouter = require('../md_08_nodejs_fpoly_cinemanow_be/src/routes/users');
@@ -77,7 +77,6 @@ app.use(function (req, res, next) {
   next(createError(404));
 });
 
-
 // error handler
 app.use(function (err, req, res, next) {
   // set locals, only providing error in development
@@ -87,6 +86,17 @@ app.use(function (err, req, res, next) {
   // render the error page
   res.status(err.status || 500);
   res.render('error');
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json(createResponse(500, 'Có lỗi xảy ra', err.message));
+});
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json(createResponse(404, 'Không tìm thấy tài nguyên', null));
 });
 
 module.exports = app;
