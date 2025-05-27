@@ -11,6 +11,9 @@ router.get('/get-by-id/:id', reviewController.getReviewById);
 // Lấy danh sách đánh giá theo phim
 router.get('/get-by-movie/:movie_id', reviewController.getReviewsByMovieId);
 
+// Lấy bình luận bị báo cáo theo phim
+router.get('/reported-comments/:movie_id', reviewController.getReportedCommentsByMovie);
+
 // Tạo đánh giá mới
 router.post('/create', reviewController.createReview);
 
