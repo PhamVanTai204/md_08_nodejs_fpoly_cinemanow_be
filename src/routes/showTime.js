@@ -20,5 +20,6 @@ router.put('/update/:id', showTimeController.updateShowTime);
 
 // Xóa suất chiếu
 router.delete('/delete/:id', showTimeController.deleteShowTime);
+router.get('/by-movie-and-cinema', showTimeController.getShowTimesByMovieAndCinemaGroupedByDate);
 
 module.exports = router;
