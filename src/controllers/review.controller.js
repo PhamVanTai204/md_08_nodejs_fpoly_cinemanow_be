@@ -1,7 +1,7 @@
 const Review = require('../models/review');
 const User = require('../models/user');
 const Film = require('../models/film');
-const Report = require('../models/report'); 
+const Report = require('../models/report');
 const createResponse = require('../utils/responseHelper');
 const mongoose = require('mongoose');
 
@@ -10,11 +10,13 @@ const mongoose = require('mongoose');
 // ANCHOR: Lấy tất cả đánh giá
 exports.getAllReviews = async (req, res) => {
     try {
-        // NOTE: Populate thông tin người dùng và phim, sắp xếp theo ngày mới nhất
-        const reviews = await Review.find()
+        // NOTE: Chỉ lấy reviews có status active hoặc reported
+        const reviews = await Review.find({ 
+            status_review: { $in: ['active', 'reported'] } 
+        })
             .populate('user_id')
             .populate('movie_id')
-            .sort({ date: -1 }); // Sắp xếp theo ngày mới nhất
+            .sort({ date: -1 });
         res.json(createResponse(200, null, reviews));
     } catch (error) {
         console.error('Get all reviews error:', error);
@@ -117,7 +119,7 @@ exports.createReview = async (req, res) => {
 
         // DONE: Lưu đánh giá vào cơ sở dữ liệu
         const savedReview = await newReview.save();
-        
+
         // NOTE: Populate thông tin người dùng và phim
         const populatedReview = await Review.findById(savedReview._id)
             .populate('user_id')
@@ -155,7 +157,7 @@ exports.updateReview = async (req, res) => {
 
         // DONE: Lưu thông tin đã cập nhật
         const updatedReview = await review.save();
-        
+
         // NOTE: Populate thông tin người dùng và phim
         const populatedReview = await Review.findById(updatedReview._id)
             .populate('user_id')
@@ -214,38 +216,113 @@ exports.reportComment = async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(review_id)) {
             return res.status(400).json(createResponse(400, 'ID bình luận không hợp lệ', null));
         }
-        
+
         const review = await Review.findById(review_id);
         if (!review) {
             return res.status(404).json(createResponse(404, 'Không tìm thấy bình luận', null));
         }
 
-        // Ghi thông tin báo cáo vào console
+        // Tạo report_id tự động
+        const reportCount = await Report.countDocuments();
+        const report_id = `RPT${String(reportCount + 1).padStart(4, '0')}`;
+
+        // Tạo báo cáo mới và lưu vào DB
+        const newReport = new Report({
+            report_id,
+            reporter_id: reporterId,
+            reported_user_id: reportedUserId,
+            review_id,
+            comment,
+            reason,
+            status: 'pending'
+        });
+
+        const savedReport = await newReport.save();
+
+        // Cập nhật trạng thái review thành "reported"
+        await Review.findByIdAndUpdate(review_id, { status_review: 'reported' });
+
         console.log('===== BÁO CÁO BÌNH LUẬN =====');
+        console.log('Report ID:', report_id);
         console.log('Reporter ID:', reporterId);
         console.log('Reported User ID:', reportedUserId);
         console.log('Review ID:', review_id);
-        console.log('Comment:', comment);
         console.log('Reason:', reason);
-        console.log('Time:', new Date().toISOString());
         console.log('==============================');
 
-        // Trả về phản hồi thành công mà không lưu vào DB
-        res.status(201).json(createResponse(201, 'Báo cáo đã được gửi thành công', {
-            reported: true,
-            reviewId: review_id,
-            timestamp: new Date().toISOString()
-        }));
+        res.status(201).json(createResponse(201, 'Báo cáo đã được gửi thành công', savedReport));
     } catch (error) {
         console.error('Report comment error:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi báo cáo bình luận', null));
+    }
+};
+
+// ANCHOR: Lấy tất cả báo cáo bình luận
+exports.getAllReports = async (req, res) => {
+    try {
+        const reports = await Report.find()
+            .populate({
+                path: 'review_id',
+                populate: [
+                    { path: 'user_id', select: 'user_name email' },
+                    { path: 'movie_id', select: 'title' }
+                ]
+            })
+            .sort({ created_at: -1 }); // Sắp xếp theo ngày mới nhất
+
+        res.json(createResponse(200, null, reports));
+    } catch (error) {
+        console.error('Get all reports error:', error);
+        res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách báo cáo', null));
+    }
+};
+
+// ANCHOR: Xử lý báo cáo (chấp nhận hoặc từ chối)
+exports.handleReport = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { action } = req.body; // 'resolved' hoặc 'rejected'
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json(createResponse(400, 'ID báo cáo không hợp lệ', null));
+        }
+
+        if (!['resolved', 'rejected'].includes(action)) {
+            return res.status(400).json(createResponse(400, 'Hành động không hợp lệ', null));
+        }
+
+        const report = await Report.findById(id);
+        if (!report) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy báo cáo', null));
+        }
+
+        // Cập nhật trạng thái báo cáo
+        report.status = action;
+        await report.save();
+
+        // Nếu báo cáo được chấp nhận, xóa bình luận
+        if (action === 'resolved') {
+            await Review.findByIdAndUpdate(report.review_id, {
+                status_review: 'deleted_by_admin'
+            });
+        } else if (action === 'rejected') {
+            // Nếu báo cáo bị từ chối, khôi phục trạng thái bình luận
+            await Review.findByIdAndUpdate(report.review_id, {
+                status_review: 'active'
+            });
+        }
+
+        res.json(createResponse(200, `Báo cáo đã được ${action === 'resolved' ? 'chấp nhận' : 'từ chối'}`, report));
+    } catch (error) {
+        console.error('Handle report error:', error);
+        res.status(500).json(createResponse(500, 'Lỗi khi xử lý báo cáo', null));
     }
 };
 // Lấy reviews theo movie_id
 exports.getReviewsByMovieId = async (req, res) => {
     try {
         const movie_id = req.params.movie_id;
-        
+
         // In thông tin debug
         console.log(`[DEBUG] getReviewsByMovieId được gọi với movie_id: ${movie_id}`);
 
@@ -256,7 +333,7 @@ exports.getReviewsByMovieId = async (req, res) => {
 
         // In truy vấn đang thực hiện
         console.log(`[DEBUG] Đang tìm reviews với movie_id: ${movie_id}`);
-        
+
         const reviews = await Review.find({ movie_id })
             .populate('user_id')
             .populate('movie_id')
@@ -264,7 +341,7 @@ exports.getReviewsByMovieId = async (req, res) => {
 
         // In kết quả tìm được
         console.log(`[DEBUG] Tìm thấy ${reviews.length} reviews cho phim ${movie_id}`);
-        
+
         // Nếu có reviews, in thông tin chi tiết về review đầu tiên
         if (reviews.length > 0) {
             console.log(`[DEBUG] Chi tiết review đầu tiên: ${JSON.stringify(reviews[0])}`);
