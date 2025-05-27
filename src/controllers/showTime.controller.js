@@ -144,39 +144,39 @@ exports.createShowTime = async (req, res) => {
 
         // FEATURE: Kiểm tra trùng lịch suất chiếu
         // NOTE: Tìm các suất chiếu cùng phòng, cùng ngày
-        const conflictingShowTimes = await ShowTime.find({
-            room_id: room_id,
-            show_date: formattedDate,
-            // OPTIMIZE: Chỉ tìm các suất chiếu có thời gian trùng lặp
-            $or: [
-                // Trường hợp 1: start_time mới nằm trong khoảng thời gian của suất chiếu cũ
-                {
-                    $and: [
-                        { start_time: { $lte: start_time } },
-                        { end_time: { $gt: start_time } }
-                    ]
-                },
-                // Trường hợp 2: end_time mới nằm trong khoảng thời gian của suất chiếu cũ
-                {
-                    $and: [
-                        { start_time: { $lt: end_time } },
-                        { end_time: { $gte: end_time } }
-                    ]
-                },
-                // Trường hợp 3: suất chiếu mới bao trùm suất chiếu cũ
-                {
-                    $and: [
-                        { start_time: { $gte: start_time } },
-                        { end_time: { $lte: end_time } }
-                    ]
-                }
-            ]
-        });
+        // const conflictingShowTimes = await ShowTime.find({
+        //     room_id: room_id,
+        //     show_date: formattedDate,
+        //     // OPTIMIZE: Chỉ tìm các suất chiếu có thời gian trùng lặp
+        //     $or: [
+        //         // Trường hợp 1: start_time mới nằm trong khoảng thời gian của suất chiếu cũ
+        //         {
+        //             $and: [
+        //                 { start_time: { $lte: start_time } },
+        //                 { end_time: { $gt: start_time } }
+        //             ]
+        //         },
+        //         // Trường hợp 2: end_time mới nằm trong khoảng thời gian của suất chiếu cũ
+        //         {
+        //             $and: [
+        //                 { start_time: { $lt: end_time } },
+        //                 { end_time: { $gte: end_time } }
+        //             ]
+        //         },
+        //         // Trường hợp 3: suất chiếu mới bao trùm suất chiếu cũ
+        //         {
+        //             $and: [
+        //                 { start_time: { $gte: start_time } },
+        //                 { end_time: { $lte: end_time } }
+        //             ]
+        //         }
+        //     ]
+        // });
 
-        // WARNING: Nếu có trùng lịch thì báo lỗi
-        if (conflictingShowTimes.length > 0) {
-            return res.status(400).json(createResponse(400, 'Suất chiếu bị trùng lịch với suất chiếu khác trong cùng phòng', null));
-        }
+        // // WARNING: Nếu có trùng lịch thì báo lỗi
+        // if (conflictingShowTimes.length > 0) {
+        //     return res.status(400).json(createResponse(400, 'Suất chiếu bị trùng lịch với suất chiếu khác trong cùng phòng', null));
+        // }
 
         // NOTE: Tạo đối tượng suất chiếu mới
         const newShowTime = new ShowTime({
