@@ -118,14 +118,16 @@ exports.addPayment = async (req, res) => {
 exports.getAllPayments = async (req, res) => {
     try {
         // Xử lý tham số phân trang và tìm kiếm
-        let { page, limit, search } = req.query;
+        let { page, limit, search, cinema_id } = req.query;
         page = parseInt(page) || 1;
         limit = parseInt(limit) || 10;
+
         const skip = (page - 1) * limit;
 
         // Sử dụng MongoDB Aggregation Framework
         const aggregate = Payment.aggregate([
-            // Join với bảng tickets
+            // Join với bảng 
+
             {
                 $lookup: {
                     from: 'tickets',
@@ -213,17 +215,20 @@ exports.getAllPayments = async (req, res) => {
 
             // Lọc theo điều kiện tìm kiếm
             {
-                $match: search ? {
-                    $or: [
-                        { 'ticket.user.email': { $regex: search, $options: 'i' } },
-                        { 'payment_id': { $regex: search, $options: 'i' } },
-                        { 'ticket.ticket_id': { $regex: search, $options: 'i' } }, // <-- thêm dòng này
-                        { 'ticket.showtime.room.cinema.cinema_name': { $regex: search, $options: 'i' } },
-                        { 'ticket.showtime.movie.title': { $regex: search, $options: 'i' } }
-                    ]
-                } : {}
-
+                $match: {
+                    ...(search ? {
+                        $or: [
+                            { 'ticket.user.email': { $regex: search, $options: 'i' } },
+                            { 'payment_id': { $regex: search, $options: 'i' } },
+                            { 'ticket.ticket_id': { $regex: search, $options: 'i' } },
+                            { 'ticket.showtime.room.cinema.cinema_name': { $regex: search, $options: 'i' } },
+                            { 'ticket.showtime.movie.title': { $regex: search, $options: 'i' } }
+                        ]
+                    } : {}),
+                    ...(cinema_id ? { 'ticket.showtime.room.cinema._id': new mongoose.Types.ObjectId(cinema_id) } : {})
+                }
             },
+
 
             // Sắp xếp từ mới nhất đến cũ nhất
             {

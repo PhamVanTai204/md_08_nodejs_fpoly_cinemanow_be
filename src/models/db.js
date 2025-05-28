@@ -3,13 +3,12 @@ require('dotenv').config(); // su dung thu vien doc file env:   npm install dote
 const DB_NAME = process.env.DB_NAME;
 
 mongoose.connect(
-        'mongodb+srv://sanndph32936:sandapchai12@cluster0.cstvl.mongodb.net/Learning?retryWrites=true&w=majority&appName=Cluster0'
-).then(
-        () => {
-                console.log(DB_NAME);
+        'mongodb+srv://tpgzin36406:tai12345@cluster0.qjep0.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0').then(
+                () => {
+                        console.log(DB_NAME);
 
-        }
-)
+                }
+        )
         .catch((err) => {
                 console.log("Loi ket noi CSDL");
                 console.log(err);
