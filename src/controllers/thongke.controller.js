@@ -4,10 +4,10 @@ const mongoose = require('mongoose');
 
 // SECTION: Controller quản lý thống kê doanh thu
 const revenueController = {
-    // ANCHOR: Lấy doanh thu theo phim
+    // ANCHOR: Lấy doanh thu theo phim (đã thêm filter theo cinema_id)
     getRevenueByMovie: async (req, res) => {
         try {
-            const { startDate, endDate } = req.query;
+            const { startDate, endDate, cinema_id } = req.query;
 
             // NOTE: Kiểm tra tham số đầu vào bắt buộc
             if (!startDate || !endDate) {
@@ -19,14 +19,17 @@ const revenueController = {
             const end = new Date(endDate);
             end.setHours(23, 59, 59, 999);
 
-            // NOTE: Truy vấn dữ liệu thanh toán và populate thông tin liên quan
-            const payments = await Payment.find({
+            // Tạo điều kiện truy vấn cơ bản
+            const baseQuery = {
                 vnp_PayDate: {
                     $gte: start,
                     $lte: end
                 },
                 status_order: 'completed'
-            }).populate({
+            };
+
+            // Thêm điều kiện cinema_id nếu được truyền vào
+            let populateOptions = {
                 path: 'ticket_id',
                 populate: {
                     path: 'showtime_id',
@@ -34,7 +37,17 @@ const revenueController = {
                         path: 'movie_id'
                     }
                 }
-            });
+            };
+
+            if (cinema_id) {
+                populateOptions.populate.populate = {
+                    path: 'movie_id',
+                    match: { 'showtime_id.cinema_id': mongoose.Types.ObjectId(cinema_id) }
+                };
+            }
+
+            // NOTE: Truy vấn dữ liệu thanh toán và populate thông tin liên quan
+            const payments = await Payment.find(baseQuery).populate(populateOptions);
 
             // NOTE: Cấu trúc dữ liệu để thống kê theo phim
             const movieStats = {};
@@ -44,6 +57,11 @@ const revenueController = {
                 const ticket = payment.ticket_id;
                 const showtime = ticket?.showtime_id;
                 const movie = showtime?.movie_id;
+
+                // Nếu có filter cinema_id nhưng showtime không thuộc cinema đó thì bỏ qua
+                if (cinema_id && showtime?.cinema_id?.toString() !== cinema_id) {
+                    return;
+                }
 
                 if (movie) {
                     const movieId = movie._id.toString();
@@ -59,12 +77,17 @@ const revenueController = {
                 }
             });
 
+
             // STATS: Tính tổng doanh thu từ kết quả thống kê
             const result = Object.values(movieStats);
             const totalRevenue = result.reduce((sum, m) => sum + m.revenue, 0);
 
+            // Sắp xếp kết quả theo doanh thu giảm dần
+            result.sort((a, b) => b.revenue - a.revenue);
+
             res.json({
                 dateRange: { startDate, endDate },
+                cinema_id: cinema_id || 'all', // Thêm thông tin cinema_id vào response
                 totalRevenue,
                 movieStats: result
             });
@@ -73,7 +96,7 @@ const revenueController = {
         }
     },
 
-    // ANCHOR: Lấy doanh thu theo rạp chiếu phim
+    // ANCHOR: Lấy doanh thu theo rạp chiếu phim (giữ nguyên như cũ)
     getRevenueByCinema: async (req, res) => {
         try {
             const { startDate, endDate } = req.query;
@@ -140,10 +163,10 @@ const revenueController = {
         }
     },
 
-    // ANCHOR: Lấy doanh thu theo khoảng thời gian
+    // ANCHOR: Lấy doanh thu theo khoảng thời gian (thêm filter cinema_id)
     getRevenueByDateRange: async (req, res) => {
         try {
-            const { startDate, endDate } = req.query;
+            const { startDate, endDate, cinema_id } = req.query;
 
             // NOTE: Kiểm tra tham số đầu vào bắt buộc
             if (!startDate || !endDate) {
@@ -155,36 +178,55 @@ const revenueController = {
             const end = new Date(endDate);
             end.setHours(23, 59, 59, 999);
 
-            // NOTE: Truy vấn dữ liệu thanh toán trong khoảng thời gian
-            const payments = await Payment.find({
+            // Tạo base query
+            const baseQuery = {
                 vnp_PayDate: {
                     $gte: start,
                     $lte: end
                 },
                 status_order: 'completed'
-            }).populate('ticket_id');
+            };
+
+            // Populate options
+            const populateOptions = {
+                path: 'ticket_id',
+                populate: {
+                    path: 'showtime_id',
+                    populate: 'cinema_id'
+                }
+            };
+
+            // NOTE: Truy vấn dữ liệu thanh toán trong khoảng thời gian
+            const payments = await Payment.find(baseQuery).populate(populateOptions);
+
+            // Lọc theo cinema_id nếu có
+            const filteredPayments = cinema_id
+                ? payments.filter(payment =>
+                    payment.ticket_id?.showtime_id?.cinema_id?._id.toString() === cinema_id)
+                : payments;
 
             // STATS: Tính tổng doanh thu từ các thanh toán
-            const totalRevenue = payments.reduce((sum, payment) => {
+            const totalRevenue = filteredPayments.reduce((sum, payment) => {
                 return sum + (payment.ticket_id?.total_amount || 0);
             }, 0);
 
             res.json({
                 startDate,
                 endDate,
+                cinema_id: cinema_id || 'all',
                 totalRevenue,
-                paymentCount: payments.length,
-                ticketCount: payments.length
+                paymentCount: filteredPayments.length,
+                ticketCount: filteredPayments.length
             });
         } catch (error) {
             res.status(500).json({ message: error.message });
         }
     },
 
-    // ANCHOR: Lấy doanh thu theo ngày
+    // ANCHOR: Lấy doanh thu theo ngày (thêm filter cinema_id)
     getRevenueByDay: async (req, res) => {
         try {
-            const { year, month, day } = req.query;
+            const { year, month, day, cinema_id } = req.query;
 
             // NOTE: Kiểm tra tham số đầu vào bắt buộc
             if (!year || !month || !day) {
@@ -195,35 +237,54 @@ const revenueController = {
             const startDate = new Date(year, month - 1, day);
             const endDate = new Date(year, month - 1, day, 23, 59, 59, 999);
 
-            // NOTE: Truy vấn dữ liệu thanh toán trong ngày
-            const payments = await Payment.find({
+            // Tạo base query
+            const baseQuery = {
                 vnp_PayDate: {
                     $gte: startDate,
                     $lte: endDate
                 },
                 status_order: 'completed'
-            }).populate('ticket_id');
+            };
+
+            // Populate options
+            const populateOptions = {
+                path: 'ticket_id',
+                populate: {
+                    path: 'showtime_id',
+                    populate: 'cinema_id'
+                }
+            };
+
+            // NOTE: Truy vấn dữ liệu thanh toán trong ngày
+            const payments = await Payment.find(baseQuery).populate(populateOptions);
+
+            // Lọc theo cinema_id nếu có
+            const filteredPayments = cinema_id
+                ? payments.filter(payment =>
+                    payment.ticket_id?.showtime_id?.cinema_id?._id.toString() === cinema_id)
+                : payments;
 
             // STATS: Tính tổng doanh thu cho ngày cụ thể
-            const totalRevenue = payments.reduce((sum, payment) => {
+            const totalRevenue = filteredPayments.reduce((sum, payment) => {
                 return sum + (payment.ticket_id?.total_amount || 0);
             }, 0);
 
             res.json({
                 date: `${day}/${month}/${year}`,
+                cinema_id: cinema_id || 'all',
                 totalRevenue,
-                paymentCount: payments.length,
-                ticketCount: payments.length
+                paymentCount: filteredPayments.length,
+                ticketCount: filteredPayments.length
             });
         } catch (error) {
             res.status(500).json({ message: error.message });
         }
     },
 
-    // ANCHOR: Lấy doanh thu theo tháng
+    // ANCHOR: Lấy doanh thu theo tháng (thêm filter cinema_id)
     getRevenueByMonth: async (req, res) => {
         try {
-            const { year, month } = req.query;
+            const { year, month, cinema_id } = req.query;
 
             // NOTE: Kiểm tra tham số đầu vào bắt buộc
             if (!year || !month) {
@@ -234,36 +295,55 @@ const revenueController = {
             const startDate = new Date(year, month - 1, 1);
             const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
-            // NOTE: Truy vấn dữ liệu thanh toán trong tháng
-            const payments = await Payment.find({
+            // Tạo base query
+            const baseQuery = {
                 vnp_PayDate: {
                     $gte: startDate,
                     $lte: endDate
                 },
                 status_order: 'completed'
-            }).populate('ticket_id');
+            };
+
+            // Populate options
+            const populateOptions = {
+                path: 'ticket_id',
+                populate: {
+                    path: 'showtime_id',
+                    populate: 'cinema_id'
+                }
+            };
+
+            // NOTE: Truy vấn dữ liệu thanh toán trong tháng
+            const payments = await Payment.find(baseQuery).populate(populateOptions);
+
+            // Lọc theo cinema_id nếu có
+            const filteredPayments = cinema_id
+                ? payments.filter(payment =>
+                    payment.ticket_id?.showtime_id?.cinema_id?._id.toString() === cinema_id)
+                : payments;
 
             // STATS: Tính tổng doanh thu cho tháng cụ thể
-            const totalRevenue = payments.reduce((sum, payment) => {
+            const totalRevenue = filteredPayments.reduce((sum, payment) => {
                 return sum + (payment.ticket_id?.total_amount || 0);
             }, 0);
 
             res.json({
                 year,
                 month,
+                cinema_id: cinema_id || 'all',
                 totalRevenue,
-                paymentCount: payments.length,
-                ticketCount: payments.length
+                paymentCount: filteredPayments.length,
+                ticketCount: filteredPayments.length
             });
         } catch (error) {
             res.status(500).json({ message: error.message });
         }
     },
 
-    // ANCHOR: Lấy doanh thu theo năm
+    // ANCHOR: Lấy doanh thu theo năm (thêm filter cinema_id)
     getRevenueByYear: async (req, res) => {
         try {
-            const { year } = req.query;
+            const { year, cinema_id } = req.query;
 
             // NOTE: Kiểm tra tham số đầu vào bắt buộc
             if (!year) {
@@ -274,23 +354,41 @@ const revenueController = {
             const startDate = new Date(year, 0, 1);
             const endDate = new Date(year, 11, 31, 23, 59, 59, 999);
 
-            // NOTE: Truy vấn dữ liệu thanh toán trong năm
-            const payments = await Payment.find({
+            // Tạo base query
+            const baseQuery = {
                 vnp_PayDate: {
                     $gte: startDate,
                     $lte: endDate
                 },
                 status_order: 'completed'
-            }).populate('ticket_id');
+            };
+
+            // Populate options
+            const populateOptions = {
+                path: 'ticket_id',
+                populate: {
+                    path: 'showtime_id',
+                    populate: 'cinema_id'
+                }
+            };
+
+            // NOTE: Truy vấn dữ liệu thanh toán trong năm
+            const payments = await Payment.find(baseQuery).populate(populateOptions);
+
+            // Lọc theo cinema_id nếu có
+            const filteredPayments = cinema_id
+                ? payments.filter(payment =>
+                    payment.ticket_id?.showtime_id?.cinema_id?._id.toString() === cinema_id)
+                : payments;
 
             // STATS: Tính tổng doanh thu cho năm cụ thể
-            const totalRevenue = payments.reduce((sum, payment) => {
+            const totalRevenue = filteredPayments.reduce((sum, payment) => {
                 return sum + (payment.ticket_id?.total_amount || 0);
             }, 0);
 
             // HIGHLIGHT: Phân tích doanh thu theo từng tháng trong năm
             const monthlyData = Array(12).fill(0).map((_, index) => {
-                const monthPayments = payments.filter(payment =>
+                const monthPayments = filteredPayments.filter(payment =>
                     payment.vnp_PayDate.getMonth() === index
                 );
 
@@ -307,9 +405,10 @@ const revenueController = {
 
             res.json({
                 year,
+                cinema_id: cinema_id || 'all',
                 totalRevenue,
-                paymentCount: payments.length,
-                ticketCount: payments.length,
+                paymentCount: filteredPayments.length,
+                ticketCount: filteredPayments.length,
                 monthlyData
             });
         } catch (error) {
@@ -317,11 +416,10 @@ const revenueController = {
         }
     },
 
-    // ANCHOR: Lấy thống kê doanh thu chi tiết
-    // REVIEW: Phương thức này khá phức tạp, cần xem xét lại hiệu suất
+    // ANCHOR: Lấy thống kê doanh thu chi tiết (thêm filter cinema_id)
     getDetailedRevenueStats: async (req, res) => {
         try {
-            const { startDate, endDate } = req.query;
+            const { startDate, endDate, cinema_id } = req.query;
 
             // NOTE: Kiểm tra tham số đầu vào bắt buộc
             if (!startDate || !endDate) {
@@ -333,14 +431,17 @@ const revenueController = {
             const end = new Date(endDate);
             end.setHours(23, 59, 59, 999);
 
-            // OPTIMIZE: Có thể tối ưu hóa truy vấn này để giảm độ phức tạp và tăng hiệu suất
-            const payments = await Payment.find({
+            // Tạo base query
+            const baseQuery = {
                 vnp_PayDate: {
                     $gte: start,
                     $lte: end
                 },
                 status_order: 'completed'
-            }).populate({
+            };
+
+            // OPTIMIZE: Có thể tối ưu hóa truy vấn này để giảm độ phức tạp và tăng hiệu suất
+            const payments = await Payment.find(baseQuery).populate({
                 path: 'ticket_id',
                 populate: [
                     {
@@ -354,14 +455,20 @@ const revenueController = {
                 ]
             });
 
+            // Lọc theo cinema_id nếu có
+            const filteredPayments = cinema_id
+                ? payments.filter(payment =>
+                    payment.ticket_id?.showtime_id?.cinema_id?._id.toString() === cinema_id)
+                : payments;
+
             // STATS: Tính tổng doanh thu
-            const totalRevenue = payments.reduce((sum, payment) => {
+            const totalRevenue = filteredPayments.reduce((sum, payment) => {
                 return sum + (payment.ticket_id?.total_amount || 0);
             }, 0);
 
             // SECTION: Nhóm dữ liệu theo phim
             const movies = {};
-            payments.forEach(payment => {
+            filteredPayments.forEach(payment => {
                 const ticket = payment.ticket_id;
                 const movie = ticket?.showtime_id?.movie_id;
 
@@ -385,7 +492,7 @@ const revenueController = {
                 '1': { method: 'Chuyển khoản', revenue: 0, paymentCount: 0 }
             };
 
-            payments.forEach(payment => {
+            filteredPayments.forEach(payment => {
                 const methodKey = payment.payment_method.toString();
                 if (paymentMethods[methodKey]) {
                     paymentMethods[methodKey].revenue += payment.ticket_id?.total_amount || 0;
@@ -394,9 +501,8 @@ const revenueController = {
             });
 
             // SECTION: Lấy danh sách người dùng chi tiêu nhiều nhất
-            // TODO: Thêm bộ lọc để người dùng có thể tùy chỉnh số lượng người dùng hiển thị
             const users = {};
-            payments.forEach(payment => {
+            filteredPayments.forEach(payment => {
                 const user = payment.ticket_id?.user_id;
                 if (user) {
                     const userId = user._id.toString();
@@ -417,13 +523,12 @@ const revenueController = {
                 .sort((a, b) => b.spending - a.spending)
                 .slice(0, 10);
 
-            // IDEA: Có thể thêm phân tích theo thời gian trong ngày để xác định khung giờ bán vé cao điểm
-
             res.json({
                 dateRange: { startDate, endDate },
+                cinema_id: cinema_id || 'all',
                 totalRevenue,
-                totalPayments: payments.length,
-                totalTickets: payments.length,
+                totalPayments: filteredPayments.length,
+                totalTickets: filteredPayments.length,
                 movies: Object.values(movies),
                 paymentMethods: Object.values(paymentMethods),
                 topUsers
@@ -434,5 +539,4 @@ const revenueController = {
     }
 };
 
-// WARNING: Đảm bảo các controller đã được kiểm tra kỹ trước khi triển khai production
 module.exports = revenueController;

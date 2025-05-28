@@ -8,8 +8,8 @@ mongoose.connect(
         () => {
                 console.log(DB_NAME);
 
-        }
-)
+                }
+        )
         .catch((err) => {
                 console.log("Loi ket noi CSDL");
                 console.log(err);
