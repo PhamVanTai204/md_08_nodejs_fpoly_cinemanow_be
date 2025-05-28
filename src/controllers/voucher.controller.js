@@ -4,6 +4,53 @@ const mongoose = require('mongoose');
 
 // SECTION: Controllers quản lý voucher
 
+// ANCHOR: Lấy voucher khả dụng cho người dùng
+exports.getAvailableVouchersForUser = async (req, res) => {
+    try {
+        const userId = req.params.userid;
+
+        // Kiểm tra userId hợp lệ
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).json(createResponse(400, 'ID người dùng không hợp lệ', null));
+        }
+
+        // Lấy thời gian hiện tại
+        const currentDate = new Date();
+
+        // Tìm tất cả voucher thỏa mãn điều kiện:
+        // 1. Số lượng > 0
+        // 2. Trong thời gian hiệu lực
+        // 3. Trạng thái active
+        const availableVouchers = await Voucher.find({
+            total_voucher: { $gt: 0 },
+            start_date_voucher: { $lte: currentDate },
+            end_date_voucher: { $gte: currentDate },
+            status_voucher: 'active'
+        });
+
+        // Kiểm tra voucher nào người dùng chưa sử dụng
+        const unusedVouchers = [];
+        for (const voucher of availableVouchers) {
+            // Kiểm tra xem người dùng đã sử dụng voucher này chưa
+            const usedVoucher = await Ticket.findOne({
+                user_id: userId,
+                voucher_id: voucher._id
+            });
+
+            // Nếu chưa sử dụng thì thêm vào danh sách
+            if (!usedVoucher) {
+                unusedVouchers.push(voucher);
+            }
+        }
+
+        res.json(createResponse(200, null, unusedVouchers));
+    } catch (error) {
+        console.error('Get available vouchers for user error:', error);
+        res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách voucher khả dụng', null));
+    }
+};
+
+
 // ANCHOR: Lấy danh sách voucher
 exports.getAllVouchers = async (req, res) => {
     try {

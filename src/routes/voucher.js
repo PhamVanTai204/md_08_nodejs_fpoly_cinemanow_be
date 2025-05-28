@@ -19,5 +19,5 @@ router.delete('/delete/:id', voucherController.deleteVoucher);
 
 // Áp dụng voucher vào đơn hàng
 router.post('/apply', voucherController.applyVoucher);
-
+router.get('/available/:userid', voucherController.getAvailableVouchersForUser);
 module.exports = router; 
