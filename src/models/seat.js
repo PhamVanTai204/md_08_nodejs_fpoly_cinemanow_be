@@ -12,7 +12,7 @@ const seatSchema = new mongoose.Schema({
     },
     seat_status: {
         type: String,
-        enum: ['available', 'booked', 'unavailable', 'selecting'],
+        enum: ['available', 'booked', ' unavailable', 'selecting'],
         default: 'available',
         required: true
     },

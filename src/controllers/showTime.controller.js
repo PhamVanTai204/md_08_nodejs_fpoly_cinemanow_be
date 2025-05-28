@@ -449,6 +449,165 @@ exports.getShowTimesByMovieLocation = async (req, res) => {
     }
 };
 
+
+// FUNCTIONALITY: Hàm helper - Nhóm suất chiếu theo ngày
+// NOTE: Giúp frontend dễ dàng hiển thị lịch chiếu theo từng ngày
+function _groupShowTimesByDate(showTimes) {
+    const grouped = {};
+    
+    showTimes.forEach(showTime => {
+        // NOTE: Chuyển đổi show_date thành string định dạng YYYY-MM-DD
+        let dateKey;
+        if (showTime.show_date instanceof Date) {
+            dateKey = showTime.show_date.toISOString().split('T')[0];
+        } else {
+            // FIXME: Xử lý trường hợp show_date là string
+            dateKey = new Date(showTime.show_date).toISOString().split('T')[0];
+        }
+        
+        if (!grouped[dateKey]) {
+            grouped[dateKey] = {
+                date: dateKey,
+                day_of_week: _getDayOfWeek(new Date(dateKey)),
+                showtimes: []
+            };
+        }
+        
+        grouped[dateKey].showtimes.push({
+            showtime_id: showTime.showtime_id,
+            start_time: showTime.start_time,
+            end_time: showTime.end_time,
+            room: showTime.room_id
+        });
+    });
+    
+    // NOTE: Chuyển object thành array và sắp xếp theo ngày
+    return Object.values(grouped).sort((a, b) => new Date(a.date) - new Date(b.date));
+}
+
+// FUNCTIONALITY: Hàm helper - Nhóm suất chiếu theo phim
+// NOTE: Giúp hiển thị danh sách phim và suất chiếu tương ứng
+function _groupShowTimesByMovie(showTimes) {
+    const grouped = {};
+    
+    showTimes.forEach(showTime => {
+        const movieId = showTime.movie_id._id.toString();
+        
+        if (!grouped[movieId]) {
+            grouped[movieId] = {
+                movie: showTime.movie_id,
+                showtimes: []
+            };
+        }
+        
+        grouped[movieId].showtimes.push({
+            showtime_id: showTime.showtime_id,
+            show_date: showTime.show_date,
+            start_time: showTime.start_time,
+            end_time: showTime.end_time,
+            room: showTime.room_id
+        });
+    });
+    
+    return Object.values(grouped);
+}
+
+// FUNCTIONALITY: Hàm helper - Lấy thứ trong tuần
+// NOTE: Trả về tên thứ bằng tiếng Việt
+function _getDayOfWeek(date) {
+    const daysOfWeek = [
+        'Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 
+        'Thứ năm', 'Thứ sáu', 'Thứ bảy'
+    ];
+    
+    const dayIndex = new Date(date).getDay();
+    return daysOfWeek[dayIndex];
+}
+
+// ANCHOR: API Mobile - Lấy suất chiếu theo phim và rạp cụ thể (Cập nhật)
+// FUNCTIONALITY: Lấy danh sách suất chiếu dựa trên movie_id và cinema_id từ URL params
+exports.getShowTimesByMovieAndCinema = async (req, res) => {
+    try {
+        // NOTE: Lấy movie_id và cinema_id từ URL params thay vì query params
+        const { movie_id, cinema_id } = req.params;
+
+        // IMPORTANT: Kiểm tra tính hợp lệ của các ID
+        if (!mongoose.Types.ObjectId.isValid(movie_id)) {
+            return res.status(400).json(createResponse(400, 'ID phim không hợp lệ', null));
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(cinema_id)) {
+            return res.status(400).json(createResponse(400, 'ID rạp không hợp lệ', null));
+        }
+
+        // NOTE: Kiểm tra sự tồn tại của phim
+        const movieExists = await Film.findById(movie_id);
+        if (!movieExists) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy phim', null));
+        }
+
+        // NOTE: Kiểm tra sự tồn tại của rạp
+        const cinemaExists = await Cinema.findById(cinema_id);
+        if (!cinemaExists) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy rạp', null));
+        }
+
+        // PERFORMANCE: Lấy danh sách phòng thuộc rạp để tối ưu truy vấn
+        const rooms = await Room.find({ cinema_id });
+        const roomIds = rooms.map(room => room._id);
+
+        if (!roomIds.length) {
+            return res.status(404).json(createResponse(404, 'Rạp này chưa có phòng chiếu nào', null));
+        }
+
+        // NOTE: Lấy thời gian hiện tại để lọc suất chiếu còn hiệu lực
+        const currentTime = new Date();
+
+        // FUNCTIONALITY: Truy vấn lấy suất chiếu với điều kiện - Đơn giản hóa
+        const showTimes = await ShowTime.find({
+            movie_id,
+            room_id: { $in: roomIds }
+        })
+            .sort({ show_date: 1, start_time: 1 }); // Sắp xếp theo ngày và giờ
+
+        if (!showTimes.length) {
+            return res.status(404).json(createResponse(404, 'Không tìm thấy suất chiếu nào cho phim này tại rạp đã chọn', null));
+        }
+
+        // OPTIMIZE: Lọc suất chiếu còn hiệu lực (chưa kết thúc)
+        const validShowTimes = showTimes.filter(showTime => {
+            const showEndDateTime = new Date(showTime.show_date);
+            const [endHour, endMinute] = showTime.end_time.split(':').map(Number);
+            showEndDateTime.setHours(endHour, endMinute, 0, 0);
+            
+            return showEndDateTime > currentTime;
+        });
+
+        if (!validShowTimes.length) {
+            return res.status(404).json(createResponse(404, 'Không có suất chiếu nào còn hiệu lực', null));
+        }
+
+        // UI/UX: Format dữ liệu siêu đơn giản cho mobile
+        const simpleData = validShowTimes.map(showTime => {
+            const date = new Date(showTime.show_date);
+            const day = date.getDate();
+            const dayName = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][date.getDay()];
+            
+            return {
+                _id: showTime._id,
+                date: `${dayName} ${day}`,
+                time: showTime.start_time
+            };
+        });
+
+        res.json(createResponse(200, 'Lấy danh sách suất chiếu thành công', simpleData));
+
+    } catch (error) {
+        // LOGGING: Ghi log lỗi để debug
+        console.error('Get show times by movie and cinema error:', error);
+        res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách suất chiếu', null));
+    }
+};
 // TODO: Bổ sung API lấy suất chiếu theo ngày
 // IDEA: Thêm tính năng đề xuất suất chiếu phổ biến dựa trên lịch sử đặt vé
 // IDEA: Thêm kiểm tra trùng lịch khi tạo suất chiếu mới
