@@ -263,7 +263,7 @@ exports.applyVoucher = async (req, res) => {
 
         // IMPORTANT: Kiểm tra thời hạn sử dụng
         const currentDate = new Date();
-        if (currentDate < voucher.start_date_voucher || currentDate > voucher.end_date_voucher) {
+        if ( currentDate > voucher.end_date_voucher) {
             return res.status(400).json(createResponse(400, 'Voucher nằm ngoài thời hạn sử dụng', null));
         }
 
