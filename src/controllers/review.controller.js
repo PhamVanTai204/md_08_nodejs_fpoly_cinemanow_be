@@ -301,31 +301,35 @@ exports.getReportedCommentsByMovie = async (req, res) => {
     try {
         const movie_id = req.params.movie_id;
 
-        // IMPORTANT: Kiểm tra tính hợp lệ của ID phim
         if (!mongoose.Types.ObjectId.isValid(movie_id)) {
             return res.status(400).json(createResponse(400, 'ID phim không hợp lệ', null));
         }
 
-        // NOTE: Tìm tất cả reports có review thuộc về phim này
-        const reportedComments = await Report.find({ status: 'pending' })
-            .populate({
-                path: 'review_id',
-                match: { movie_id: movie_id },
-                populate: [
-                    { path: 'user_id' },
-                    { path: 'movie_id' }
-                ]
-            })
-            .populate('reporter_id')
-            .populate('reported_user_id')
-            .sort({ created_at: -1 });
+        // Tìm tất cả review bị reported của phim này
+        const reportedReviews = await Review.find({
+            movie_id: movie_id,
+            status_review: 'reported'
+        }).populate('user_id', 'username avatar')
+            .populate('movie_id', 'title poster');
 
-        // NOTE: Lọc bỏ những report không có review (do match không khớp)
-        const filteredReports = reportedComments.filter(report => report.review_id !== null);
+        // Lấy ID các review đã bị reported
+        const reviewIds = reportedReviews.map(r => r._id);
 
-        console.log(`[DEBUG] Tìm thấy ${filteredReports.length} bình luận bị báo cáo cho phim ${movie_id}`);
+        // Tìm tất cả report liên quan đến các review này
+        const reports = await Report.find({
+            review_id: { $in: reviewIds },
+            status: 'pending'
+        }).sort({ created_at: -1 });
 
-        res.json(createResponse(200, null, filteredReports));
+        // Kết hợp thông tin
+        const result = reportedReviews.map(review => {
+            const relatedReports = reports.filter(r => r.review_id.equals(review._id));
+            return {
+                review: review,
+            };
+        });
+
+        res.json(createResponse(200, null, result));
     } catch (error) {
         console.error('Get reported comments by movie error:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách bình luận bị báo cáo', null));
