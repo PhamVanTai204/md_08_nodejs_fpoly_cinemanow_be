@@ -319,8 +319,33 @@ exports.verifyPayment = async (req, res) => {
             ticket.status = 'confirmed';
             await ticket.save();
             // STEP: Gửi email xác nhận vé cho người dùng
+            // STEP: Gửi email xác nhận vé cho người dùng
             try {
                 const user = await User.findById(ticket.user_id);
+                const populatedTicket = await Ticket.findById(ticket._id)
+                    .populate('user_id')
+                    .populate({
+                        path: 'showtime_id',
+                        populate: [
+                            { path: 'movie_id', model: 'Film' },
+                            { path: 'room_id', model: 'Room' },
+                            { path: 'cinema_id', model: 'Cinema' }
+                        ]
+                    })
+                    .populate({
+                        path: 'seats.seat_id',
+                        model: 'Seat'
+                    })
+                    .populate({
+                        path: 'combos.combo_id',
+                        model: 'Combo'
+                    });
+
+                const showtime = populatedTicket.showtime_id;
+                const cinema = showtime.cinema_id;
+                const room = showtime.room_id;
+                const movie = showtime.movie_id;
+
                 if (user && user.email) {
                     const transporter = nodemailer.createTransport({
                         service: 'Gmail',
@@ -331,25 +356,145 @@ exports.verifyPayment = async (req, res) => {
                         tls: { rejectUnauthorized: false }
                     });
 
-                    // Tạo nội dung email
+                    // Format các giá trị cần hiển thị
+                    const showDate = new Date(showtime.show_date).toLocaleDateString('vi-VN');
+                    const paymentDate = new Date(payment.vnp_PayDate).toLocaleString('vi-VN');
+                    const totalAmount = ticket.total_amount.toLocaleString('vi-VN');
+
+                    // Tạo nội dung email với dữ liệu thực
+                    const emailHtml = `
+                    <!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đặt Vé Thành Công - Cinema Now</title>
+    <style>
+        /* Responsive additions (optional, as inline styles are primary) */
+        @media screen and (max-width: 600px) {
+            .container {
+                width: 100% !important;
+                padding: 10px !important;
+            }
+            .ticket-info, .content-padding, .header-padding {
+                padding: 15px !important;
+            }
+            .info-row > div:first-child { /* Label */
+                min-width: 100px !important;
+                margin-bottom: 5px;
+            }
+             .info-row {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+            }
+        }
+    </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, sans-serif; line-height: 1.6; color: #333333;">
+    <table width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4;">
+        <tr>
+            <td align="center">
+                <div class="container" style="max-width: 600px; margin: 20px auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 0 15px rgba(0,0,0,0.1);">
+                    <!-- Header -->
+                    <div class="header-padding" style="background-color: #007bff; /* Brand color */ color: #ffffff; padding: 30px 20px; text-align: center; border-top-left-radius: 8px; border-top-right-radius: 8px;">
+                        <h1 style="margin: 0; font-size: 28px; font-weight: bold;">ĐẶT VÉ THÀNH CÔNG</h1>
+                        <p style="margin: 10px 0 0; font-size: 16px;">Cảm ơn bạn đã sử dụng dịch vụ của Cinema Now!</p>
+                    </div>
+                    
+                    <!-- Content -->
+                    <div class="content-padding" style="padding: 30px 20px;">
+                        <p style="font-size: 16px; margin-bottom: 20px;">Xin chào <strong style="color: #007bff;">${user.full_name || user.user_name}</strong>,</p>
+                        <p style="font-size: 16px; margin-bottom: 25px;">Bạn đã đặt vé thành công. Dưới đây là thông tin chi tiết về vé của bạn:</p>
+                        
+                        <div class="ticket-info" style="border: 1px solid #e0e0e0; border-radius: 6px; padding: 20px; background-color: #f9f9f9;">
+                            <div class="info-row" style="margin-bottom: 12px; display: flex; align-items: center;">
+                                <div style="font-weight: bold; color: #555555; min-width: 150px; flex-shrink: 0;">Mã vé:</div>
+                                <div style="color: #333333;">${ticket.ticket_id}</div>
+                            </div>
+                            <div class="info-row" style="margin-bottom: 12px; display: flex; align-items: center;">
+                                <div style="font-weight: bold; color: #555555; min-width: 150px; flex-shrink: 0;">Phim:</div>
+                                <div style="color: #333333; font-weight: bold;">${movie.title}</div>
+                            </div>
+                            <div class="info-row" style="margin-bottom: 12px; display: flex; align-items: center;">
+                                <div style="font-weight: bold; color: #555555; min-width: 150px; flex-shrink: 0;">Rạp:</div>
+                                <div style="color: #333333;">${cinema.cinema_name} - ${cinema.location}</div>
+                            </div>
+                            <div class="info-row" style="margin-bottom: 12px; display: flex; align-items: center;">
+                                <div style="font-weight: bold; color: #555555; min-width: 150px; flex-shrink: 0;">Phòng chiếu:</div>
+                                <div style="color: #333333;">${room.room_name} (${room.room_style})</div>
+                            </div>
+                            <div class="info-row" style="margin-bottom: 12px; display: flex; align-items: center;">
+                                <div style="font-weight: bold; color: #555555; min-width: 150px; flex-shrink: 0;">Ngày chiếu:</div>
+                                <div style="color: #333333;">${showDate}</div>
+                            </div>
+                            <div class="info-row" style="margin-bottom: 12px; display: flex; align-items: center;">
+                                <div style="font-weight: bold; color: #555555; min-width: 150px; flex-shrink: 0;">Giờ chiếu:</div>
+                                <div style="color: #333333;">${showtime.start_time} - ${showtime.end_time}</div>
+                            </div>
+                            <div class="info-row" style="margin-bottom: 12px; display: flex; align-items: flex-start;">
+                                <div style="font-weight: bold; color: #555555; min-width: 150px; flex-shrink: 0; padding-top: 3px;">Ghế:</div>
+                                <div style="color: #333333;">
+                                    ${populatedTicket.seats.map(seat =>
+                        `<span class="seat-badge" style="background-color: #e0e0e0; color: #333333; padding: 4px 10px; border-radius: 12px; font-size: 13px; margin-right: 5px; margin-bottom: 5px; display: inline-block;">${seat.seat_id.row_of_seat}${seat.seat_id.column_of_seat} (${seat.seat_id.seat_type})</span>`
+                    ).join('')}
+                                </div>
+                            </div>
+                            ${populatedTicket.combos.length > 0 ? `
+                            <div class="info-row" style="margin-bottom: 12px; display: flex; align-items: flex-start;">
+                                <div style="font-weight: bold; color: #555555; min-width: 150px; flex-shrink: 0; padding-top: 3px;">Combo:</div>
+                                <div style="color: #333333;">
+                                    ${populatedTicket.combos.map(combo =>
+                        `<span class="combo-badge" style="background-color: #d1ecf1; color: #0c5460; padding: 4px 10px; border-radius: 12px; font-size: 13px; margin-right: 5px; margin-bottom: 5px; display: inline-block;">${combo.combo_id.name_combo} x${combo.quantity}</span>`
+                    ).join('')}
+                                </div>
+                            </div>` : ''}
+                            <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 15px 0;">
+                            <div class="info-row" style="margin-bottom: 12px; display: flex; align-items: center;">
+                                <div style="font-weight: bold; color: #555555; min-width: 150px; flex-shrink: 0;">Tổng tiền:</div>
+                                <div style="color: #007bff; font-weight: bold; font-size: 18px;">${totalAmount} VNĐ</div>
+                            </div>
+                            <div class="info-row" style="margin-bottom: 12px; display: flex; align-items: center;">
+                                <div style="font-weight: bold; color: #555555; min-width: 150px; flex-shrink: 0;">Phương thức:</div>
+                                <div style="color: #333333;">${payment.payment_method === 1 ? 'VNPay' : 'Tiền mặt'}</div>
+                            </div>
+                            <div class="info-row" style="display: flex; align-items: center;">
+                                <div style="font-weight: bold; color: #555555; min-width: 150px; flex-shrink: 0;">Thời gian thanh toán:</div>
+                                <div style="color: #333333;">${paymentDate}</div>
+                            </div>
+                        </div>
+
+                        <!-- QR Code Section -->
+                        <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                            <h3 style="margin-bottom: 10px; color: #333333; font-size: 18px;">Mã QR vé của bạn</h3>
+                            <p style="font-size: 14px; color: #666666; margin-bottom: 15px;">Vui lòng xuất trình mã QR này tại rạp để vào phòng chiếu.</p>
+                             <p style="font-size: 12px; color: #888888; margin-top: 5px;">(Mã vé: ${ticket.ticket_id})</p>
+                        </div>
+                        
+                        <p style="font-size: 16px; margin-top: 30px;">
+                            Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi qua email <a href="mailto:hotro@cinemanow.com" style="color: #007bff; text-decoration: none;">hotro@cinemanow.com</a> hoặc hotline <a href="tel:19001234" style="color: #007bff; text-decoration: none;">1900 XXXX</a>.
+                        </p>
+                        <p style="font-size: 16px;">Chúc bạn có những giây phút xem phim vui vẻ!</p>
+                    </div>
+
+                    <!-- Footer -->
+                    <div style="background-color: #f0f0f0; color: #777777; padding: 20px; text-align: center; font-size: 12px; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;">
+                        <p style="margin: 0;">© ${new Date().getFullYear()} Cinema Now. Bảo lưu mọi quyền.</p>
+                          
+                    </div>
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+                    
+                    `;
+
                     const mailOptions = {
                         from: process.env.EMAIL_USER,
                         to: user.email,
                         subject: 'Xác nhận đặt vé thành công 🎟️',
-                        html: `
-                <div style="font-family: Arial, sans-serif; padding: 20px;">
-                    <h2 style="color: #28a745;">Chúc mừng ${user.full_name || user.user_name}!</h2>
-                    <p>Bạn đã đặt vé thành công tại hệ thống <b>Cinema Now</b>.</p>
-                    <h3>Thông tin vé:</h3>
-                    <ul>
-                        <li><b>Mã vé:</b> ${ticket._id}</li>
-                        <li><b>Số ghế:</b> ${ticket.seats.map(s => s.seat_id).join(', ')}</li>
-                        <li><b>Tổng tiền:</b> ${ticket.total_amount.toLocaleString()} VNĐ</li>
-                        <li><b>Thời gian thanh toán:</b> ${new Date().toLocaleString()}</li>
-                    </ul>
-                    <p>Xin cảm ơn quý khách đã sử dụng dịch vụ!</p>
-                </div>
-            `
+                        html: emailHtml
                     };
 
                     await transporter.sendMail(mailOptions);
