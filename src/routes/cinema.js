@@ -34,5 +34,6 @@ router.get('/rooms/seats/:room_id', cinemaController.getSeatsByRoom);
 
 // Lấy danh sách ghế theo ID phòng và ID suất chiếu
 router.get('/rooms/seats/:room_id/showtime/:showtime_id', cinemaController.getSeatsByRoomAndShowTime);
+router.get('/rooms/seats1/:room_id/showtime1/:showtime_id', cinemaController.getSeatsByRoomAndShowTime1);
 
 module.exports = router;
