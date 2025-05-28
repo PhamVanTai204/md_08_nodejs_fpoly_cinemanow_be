@@ -1,7 +1,7 @@
 const Review = require('../models/review');
 const User = require('../models/user');
 const Film = require('../models/film');
-const Report = require('../models/report'); 
+const Report = require('../models/report');
 const createResponse = require('../utils/responseHelper');
 const mongoose = require('mongoose');
 
@@ -117,7 +117,7 @@ exports.createReview = async (req, res) => {
 
         // DONE: Lưu đánh giá vào cơ sở dữ liệu
         const savedReview = await newReview.save();
-        
+
         // NOTE: Populate thông tin người dùng và phim
         const populatedReview = await Review.findById(savedReview._id)
             .populate('user_id')
@@ -155,7 +155,7 @@ exports.updateReview = async (req, res) => {
 
         // DONE: Lưu thông tin đã cập nhật
         const updatedReview = await review.save();
-        
+
         // NOTE: Populate thông tin người dùng và phim
         const populatedReview = await Review.findById(updatedReview._id)
             .populate('user_id')
@@ -200,7 +200,7 @@ exports.deleteReview = async (req, res) => {
 // OPTIMIZE: Cần thêm phân trang cho API lấy tất cả đánh giá
 
 
-// Xử lý báo cáo bình luận
+// Xử lý báo cáo bình luận (CẬP NHẬT)
 exports.reportComment = async (req, res) => {
     try {
         const { reporterId, reportedUserId, comment, reason, review_id } = req.body;
@@ -214,14 +214,35 @@ exports.reportComment = async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(review_id)) {
             return res.status(400).json(createResponse(400, 'ID bình luận không hợp lệ', null));
         }
-        
+
         const review = await Review.findById(review_id);
         if (!review) {
             return res.status(404).json(createResponse(404, 'Không tìm thấy bình luận', null));
         }
 
+        // Tạo report_id unique
+        const report_id = `RPT_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        // Tạo báo cáo mới
+        const newReport = new Report({
+            report_id,
+            reporter_id: reporterId,
+            reported_user_id: reportedUserId,
+            review_id,
+            comment,
+            reason,
+            status: 'pending'
+        });
+
+        // Lưu báo cáo vào database
+        const savedReport = await newReport.save();
+
+        // Cập nhật status của review thành 'reported'
+        await Review.findByIdAndUpdate(review_id, { status_review: 'reported' });
+
         // Ghi thông tin báo cáo vào console
         console.log('===== BÁO CÁO BÌNH LUẬN =====');
+        console.log('Report ID:', report_id);
         console.log('Reporter ID:', reporterId);
         console.log('Reported User ID:', reportedUserId);
         console.log('Review ID:', review_id);
@@ -230,9 +251,8 @@ exports.reportComment = async (req, res) => {
         console.log('Time:', new Date().toISOString());
         console.log('==============================');
 
-        // Trả về phản hồi thành công mà không lưu vào DB
         res.status(201).json(createResponse(201, 'Báo cáo đã được gửi thành công', {
-            reported: true,
+            reportId: report_id,
             reviewId: review_id,
             timestamp: new Date().toISOString()
         }));
@@ -245,7 +265,7 @@ exports.reportComment = async (req, res) => {
 exports.getReviewsByMovieId = async (req, res) => {
     try {
         const movie_id = req.params.movie_id;
-        
+
         // In thông tin debug
         console.log(`[DEBUG] getReviewsByMovieId được gọi với movie_id: ${movie_id}`);
 
@@ -256,7 +276,7 @@ exports.getReviewsByMovieId = async (req, res) => {
 
         // In truy vấn đang thực hiện
         console.log(`[DEBUG] Đang tìm reviews với movie_id: ${movie_id}`);
-        
+
         const reviews = await Review.find({ movie_id })
             .populate('user_id')
             .populate('movie_id')
@@ -264,7 +284,7 @@ exports.getReviewsByMovieId = async (req, res) => {
 
         // In kết quả tìm được
         console.log(`[DEBUG] Tìm thấy ${reviews.length} reviews cho phim ${movie_id}`);
-        
+
         // Nếu có reviews, in thông tin chi tiết về review đầu tiên
         if (reviews.length > 0) {
             console.log(`[DEBUG] Chi tiết review đầu tiên: ${JSON.stringify(reviews[0])}`);
@@ -274,6 +294,45 @@ exports.getReviewsByMovieId = async (req, res) => {
     } catch (error) {
         console.error('[ERROR] Get reviews by movie id error:', error);
         res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách đánh giá theo phim', null));
+    }
+};
+// ANCHOR: Lấy bình luận bị báo cáo theo phim
+exports.getReportedCommentsByMovie = async (req, res) => {
+    try {
+        const movie_id = req.params.movie_id;
+
+        if (!mongoose.Types.ObjectId.isValid(movie_id)) {
+            return res.status(400).json(createResponse(400, 'ID phim không hợp lệ', null));
+        }
+
+        // Tìm tất cả review bị reported của phim này
+        const reportedReviews = await Review.find({
+            movie_id: movie_id,
+            status_review: 'reported'
+        }).populate('user_id', 'username avatar')
+            .populate('movie_id', 'title poster');
+
+        // Lấy ID các review đã bị reported
+        const reviewIds = reportedReviews.map(r => r._id);
+
+        // Tìm tất cả report liên quan đến các review này
+        const reports = await Report.find({
+            review_id: { $in: reviewIds },
+            status: 'pending'
+        }).sort({ created_at: -1 });
+
+        // Kết hợp thông tin
+        const result = reportedReviews.map(review => {
+            const relatedReports = reports.filter(r => r.review_id.equals(review._id));
+            return {
+                review: review,
+            };
+        });
+
+        res.json(createResponse(200, null, result));
+    } catch (error) {
+        console.error('Get reported comments by movie error:', error);
+        res.status(500).json(createResponse(500, 'Lỗi khi lấy danh sách bình luận bị báo cáo', null));
     }
 };
 
