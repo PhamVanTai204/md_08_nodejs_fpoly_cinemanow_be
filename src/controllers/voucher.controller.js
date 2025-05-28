@@ -1,6 +1,7 @@
 const Voucher = require('../models/voucher');
 const createResponse = require('../utils/responseHelper');
 const mongoose = require('mongoose');
+const Ticket = require('../models/ticket');
 
 // SECTION: Controllers quản lý voucher
 
