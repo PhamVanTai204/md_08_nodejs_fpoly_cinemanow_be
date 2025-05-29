@@ -310,6 +310,7 @@ exports.getReportedCommentsByMovie = async (req, res) => {
             movie_id: movie_id,
             status_review: 'reported'
         }).populate('user_id', 'username avatar')
+            .populate('user_id')
             .populate('movie_id', 'title poster');
 
         // Lấy ID các review đã bị reported
